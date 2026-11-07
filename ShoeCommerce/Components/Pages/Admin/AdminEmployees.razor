@@ -198,11 +198,11 @@ else
         }
     }
 
-    private void HandleKeyDown(KeyboardEventArgs e)
+    private async Task HandleKeyDown(KeyboardEventArgs e)
     {
         if (e.Key == "Enter")
         {
-            LoadEmployees();
+            await LoadEmployees();
         }
     }
 
@@ -264,4 +264,3 @@ else
         await LoadEmployees();
     }
 }
-

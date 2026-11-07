@@ -318,11 +318,11 @@
         isLoading = false;
     }
 
-    private void HandleKeyDown(KeyboardEventArgs e)
+    private async Task HandleKeyDown(KeyboardEventArgs e)
     {
         if (e.Key == "Enter")
         {
-            LoadCustomers();
+            await LoadCustomers();
         }
     }
 
@@ -389,4 +389,3 @@
         await LoadCustomers();
     }
 }
-

@@ -223,11 +223,11 @@ else
         }
     }
 
-    private void HandleKeyDown(KeyboardEventArgs e)
+    private async Task HandleKeyDown(KeyboardEventArgs e)
     {
         if (e.Key == "Enter")
         {
-            LoadPromotions();
+            await LoadPromotions();
         }
     }
 
@@ -303,4 +303,3 @@ else
         await LoadPromotions();
     }
 }
-

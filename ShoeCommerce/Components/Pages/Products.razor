@@ -305,11 +305,11 @@
         await LoadProducts();
     }
 
-    private void HandleSearchKeyDown(KeyboardEventArgs e)
+    private async Task HandleSearchKeyDown(KeyboardEventArgs e)
     {
         if (e.Key == "Enter")
         {
-            ApplyFilters();
+            await ApplyFilters();
         }
     }
 
@@ -335,4 +335,3 @@
         return "Tất Cả Sản Phẩm";
     }
 }
-
