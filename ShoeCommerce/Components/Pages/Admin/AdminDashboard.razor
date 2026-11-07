@@ -1,0 +1,244 @@
+@page "/admin"
+@layout Layout.AdminLayout
+@inject IStatisticsService StatisticsService
+@inject IOrderService OrderService
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+
+<div class="mb-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+        <div>
+            <h4 class="fw-bold text-dark mb-1">
+                @(AuthService.IsAdmin ? "Tổng Quan Quản Lý Cửa Hàng" : "Bàn Làm Việc Nhân Viên")
+            </h4>
+            <p class="text-secondary small mb-0">
+                Kho chung ShoeStore · Cập nhật theo thời gian thực lúc @DateTime.Now.ToString("HH:mm, dd/MM/yyyy")
+            </p>
+        </div>
+
+        @if (AuthService.IsAdmin)
+        {
+            <div class="d-flex gap-2">
+                <a href="/admin/products/new" class="btn btn-sm btn-dark rounded-pill px-3">
+                    <i class="bi bi-plus-lg me-1"></i> Thêm Sản Phẩm
+                </a>
+                <a href="/admin/stock-documents/new" class="btn btn-sm btn-outline-dark rounded-pill px-3">
+                    <i class="bi bi-file-earmark-plus me-1"></i> Lập Phiếu Kho
+                </a>
+            </div>
+        }
+    </div>
+</div>
+
+@if (isLoading)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border text-primary" role="status"></div>
+        <p class="text-muted mt-2">Đang tải dữ liệu tổng quan...</p>
+    </div>
+}
+else
+{
+    <!-- Low Stock Alert Banner (If Any) -->
+    @if (kpiData?.LowStockVariantCount > 0)
+    {
+        <div class="alert alert-warning border-warning d-flex align-items-center justify-content-between p-3 rounded-3 mb-4 shadow-sm">
+            <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-exclamation-triangle-fill fs-4 text-warning"></i>
+                <div>
+                    <strong>Cảnh báo tồn kho:</strong> Hiện có <strong>@kpiData.LowStockVariantCount</strong> biến thể giày có số lượng tồn thấp hơn hoặc bằng ngưỡng cảnh báo.
+                </div>
+            </div>
+            <a href="/admin/inventory" class="btn btn-sm btn-warning text-dark fw-bold rounded-pill px-3">
+                Xem Ngay
+            </a>
+        </div>
+    }
+
+    <!-- 4 KPI Cards -->
+    <div class="row g-3 mb-4">
+        <div class="col-xl-3 col-sm-6">
+            <div class="kpi-card border-start border-4 border-success">
+                <div class="d-flex justify-content-between align-items-center">
+                    <span class="kpi-label">Tổng Doanh Thu</span>
+                    <i class="bi bi-cash-stack text-success fs-4"></i>
+                </div>
+                <div class="kpi-value text-success">
+                    @(kpiData?.TotalRevenue.ToString("N0") ?? "0") ₫
+                </div>
+                <div class="text-secondary small">Đơn Hoàn tất & Đã thanh toán</div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-sm-6">
+            <div class="kpi-card border-start border-4 border-primary">
+                <div class="d-flex justify-content-between align-items-center">
+                    <span class="kpi-label">Đơn Hàng Mới Hôm Nay</span>
+                    <i class="bi bi-bag-plus text-primary fs-4"></i>
+                </div>
+                <div class="kpi-value text-primary">
+                    @(kpiData?.NewOrdersCount ?? 0)
+                </div>
+                <div class="text-secondary small">Đơn phát sinh trong ngày</div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-sm-6">
+            <div class="kpi-card border-start border-4 border-warning">
+                <div class="d-flex justify-content-between align-items-center">
+                    <span class="kpi-label">Đơn Chờ Xác Nhận</span>
+                    <i class="bi bi-hourglass-split text-warning fs-4"></i>
+                </div>
+                <div class="kpi-value text-warning">
+                    @(kpiData?.PendingOrdersCount ?? 0)
+                </div>
+                <div class="text-secondary small">
+                    <a href="/admin/orders?status=Pending" class="text-warning text-decoration-none fw-semibold">Xử lý ngay →</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-sm-6">
+            <div class="kpi-card border-start border-4 border-info">
+                <div class="d-flex justify-content-between align-items-center">
+                    <span class="kpi-label">Khách Hàng Mới</span>
+                    <i class="bi bi-people text-info fs-4"></i>
+                </div>
+                <div class="kpi-value text-info">
+                    @(kpiData?.NewCustomersCount ?? 0)
+                </div>
+                <div class="text-secondary small">Đăng ký trong tháng này</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Operations & Recent Orders Table -->
+    <div class="row g-4 mb-4">
+        <!-- Recent Orders -->
+        <div class="col-lg-8">
+            <div class="bg-white rounded-4 border p-4 shadow-sm">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h6 class="fw-bold text-dark mb-0">
+                        <i class="bi bi-clock-history me-1 text-primary"></i> Đơn Hàng Gần Đây Cần Xử Lý
+                    </h6>
+                    <a href="/admin/orders" class="small fw-semibold text-decoration-none">Xem tất cả →</a>
+                </div>
+
+                @if (recentOrders == null || !recentOrders.Any())
+                {
+                    <p class="text-secondary small mb-0 py-3 text-center">Chưa có đơn hàng nào.</p>
+                }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table align-middle small mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Mã Đơn</th>
+                                    <th>Khách Hàng</th>
+                                    <th>Tổng Tiền</th>
+                                    <th>Hình Thức</th>
+                                    <th>Trạng Thái</th>
+                                    <th class="text-end">Thao Tác</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var o in recentOrders)
+                                {
+                                    <tr>
+                                        <td>
+                                            <a href="/admin/orders/@o.OrderId" class="fw-bold text-primary font-monospace text-decoration-none">
+                                                @o.OrderCode
+                                            </a>
+                                            <div class="text-muted" style="font-size: 0.725rem;">@o.CreatedAt.ToString("dd/MM HH:mm")</div>
+                                        </td>
+                                        <td>
+                                            <div class="fw-semibold text-dark">@o.ReceiverName</div>
+                                            <div class="text-muted" style="font-size: 0.725rem;">@o.Phone</div>
+                                        </td>
+                                        <td class="fw-bold text-dark">
+                                            @o.FinalAmount.ToString("N0") ₫
+                                        </td>
+                                        <td>
+                                            <span class="badge @(o.PaymentMethod == PaymentMethod.COD ? "bg-light text-dark border" : "bg-info-subtle text-info border border-info-subtle")">
+                                                @o.PaymentMethod
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <span class="status-badge @(o.OrderStatus.ToString().ToLower())">
+                                                @o.OrderStatus
+                                            </span>
+                                        </td>
+                                        <td class="text-end">
+                                            <a href="/admin/orders/@o.OrderId" class="btn btn-sm btn-outline-dark rounded-pill px-3">
+                                                Xử lý
+                                            </a>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <!-- Low Stock Alert Box -->
+        <div class="col-lg-4">
+            <div class="bg-white rounded-4 border p-4 shadow-sm h-100 d-flex flex-column">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h6 class="fw-bold text-dark mb-0">
+                        <i class="bi bi-exclamation-octagon me-1 text-danger"></i> Giày Sắp Hết Hàng
+                    </h6>
+                    <a href="/admin/inventory" class="small fw-semibold text-decoration-none">Quản lý kho →</a>
+                </div>
+
+                @if (lowStockList == null || !lowStockList.Any())
+                {
+                    <div class="text-center py-4 my-auto text-success small">
+                        <i class="bi bi-check-circle-fill fs-2 d-block mb-2"></i>
+                        Tất cả các biến thể giày đều đang đủ tồn kho an toàn!
+                    </div>
+                }
+                else
+                {
+                    <div class="d-flex flex-column gap-2 overflow-auto" style="max-height: 320px;">
+                        @foreach (var v in lowStockList.Take(6))
+                        {
+                            <div class="p-2 border rounded-3 bg-light d-flex justify-content-between align-items-center small">
+                                <div>
+                                    <div class="fw-semibold text-dark">@v.ProductName</div>
+                                    <div class="text-secondary" style="font-size: 0.725rem;">
+                                        SKU: @v.Sku (Size @v.Size · @v.Color)
+                                    </div>
+                                </div>
+                                <div class="text-end">
+                                    <span class="badge bg-danger">Còn @v.StockQuantity</span>
+                                    <div class="text-muted" style="font-size: 0.7rem;">Ngưỡng: @v.LowStockThreshold</div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private DashboardKpiDto? kpiData;
+    private List<OrderSummaryView>? recentOrders;
+    private List<StockVariantView>? lowStockList;
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        isLoading = true;
+        kpiData = await StatisticsService.GetDashboardKpisAsync();
+        var ordersRes = await OrderService.GetAdminOrdersAsync(page: 1, pageSize: 6);
+        recentOrders = ordersRes.Items;
+        lowStockList = await StatisticsService.GetLowAndOutOfStockVariantsAsync();
+        isLoading = false;
+    }
+}
+

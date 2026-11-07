@@ -1,0 +1,142 @@
+@page "/orders"
+@inject IOrderService OrderService
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+
+<div class="container py-4">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb small">
+            <li class="breadcrumb-item"><a href="/" class="text-decoration-none">Trang chủ</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Đơn hàng của tôi</li>
+        </ol>
+    </nav>
+
+    <h3 class="fw-bold text-dark mb-4">
+        <i class="bi bi-receipt me-2"></i> Đơn Hàng Của Tôi
+    </h3>
+
+    @if (!AuthService.IsAuthenticated || !AuthService.IsCustomer)
+    {
+        <div class="bg-white rounded-4 border p-5 text-center my-4">
+            <i class="bi bi-person-lock fs-1 text-secondary mb-3 d-block"></i>
+            <h5 class="fw-bold">Vui lòng đăng nhập để xem danh sách đơn hàng</h5>
+            <a href="/login?returnUrl=/orders" class="btn btn-dark rounded-pill px-4 mt-2">Đăng Nhập</a>
+        </div>
+    }
+    else if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="text-muted mt-2">Đang tải đơn hàng...</p>
+        </div>
+    }
+    else if (orders == null || !orders.Any())
+    {
+        <div class="bg-white rounded-4 border p-5 text-center my-4">
+            <i class="bi bi-bag-x fs-1 text-secondary mb-3 d-block"></i>
+            <h5 class="fw-bold">Bạn chưa có đơn hàng nào</h5>
+            <p class="text-secondary small">Hãy bắt đầu mua sắm để nhận nhiều ưu đãi hấp dẫn từ ShoeStore nhé!</p>
+            <a href="/products" class="btn btn-dark rounded-pill px-4 mt-2">Mua sắm ngay</a>
+        </div>
+    }
+    else
+    {
+        <div class="d-flex flex-column gap-3">
+            @foreach (var o in orders)
+            {
+                <div class="bg-white rounded-4 border p-4 shadow-sm">
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 border-bottom pb-3 mb-3">
+                        <div>
+                            <span class="fw-bold text-dark fs-6 me-2">Mã đơn: <strong class="text-primary font-monospace">@o.OrderCode</strong></span>
+                            <span class="text-secondary small">· Ngày đặt: @o.CreatedAt.ToString("dd/MM/yyyy HH:mm")</span>
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                            @GetStatusBadge(o.OrderStatus)
+                            @GetPaymentStatusBadge(o.Payment?.PaymentStatus ?? PaymentStatus.Unpaid, o.Payment?.PaymentMethod ?? PaymentMethod.COD)
+                        </div>
+                    </div>
+
+                    <!-- Items Preview -->
+                    <div class="d-flex flex-column gap-2 mb-3">
+                        @foreach (var detail in o.OrderDetails)
+                        {
+                            <div class="d-flex justify-content-between align-items-center small">
+                                <div>
+                                    <span class="fw-semibold text-dark">@detail.ProductNameSnapshot</span>
+                                    <span class="text-secondary ms-2">(Size: @detail.SizeSnapshot, Màu: @detail.ColorSnapshot x @detail.Quantity)</span>
+                                </div>
+                                <div class="fw-semibold">
+                                    @((detail.Quantity * detail.UnitPrice).ToString("N0")) ₫
+                                </div>
+                            </div>
+                        }
+                    </div>
+
+                    <div class="d-flex flex-wrap justify-content-between align-items-center pt-3 border-top">
+                        <div class="small">
+                            Người nhận: <strong>@o.ReceiverName</strong> · @o.Phone · <span class="text-secondary">@o.ShippingAddress</span>
+                        </div>
+                        <div class="d-flex align-items-center gap-3 mt-2 mt-sm-0">
+                            <div>
+                                <span class="text-secondary small">Tổng thanh toán: </span>
+                                <span class="fw-bold text-danger fs-5">@((o.TotalAmount - o.DiscountAmount).ToString("N0")) ₫</span>
+                            </div>
+                            <a href="/order/@o.OrderId" class="btn btn-sm btn-outline-dark rounded-pill px-3">
+                                Chi tiết đơn <i class="bi bi-chevron-right ms-1"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private List<Order>? orders;
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthService.IsAuthenticated && AuthService.IsCustomer && AuthService.CurrentUser != null)
+        {
+            isLoading = true;
+            orders = await OrderService.GetCustomerOrdersAsync(AuthService.CurrentUser.UserId);
+            isLoading = false;
+        }
+    }
+
+    private RenderFragment GetStatusBadge(OrderStatus status) => builder =>
+    {
+        var (cls, label) = status switch
+        {
+            OrderStatus.Pending => ("bg-warning text-dark", "Chờ xác nhận"),
+            OrderStatus.Confirmed => ("bg-info text-white", "Đã xác nhận"),
+            OrderStatus.Shipping => ("bg-primary text-white", "Đang giao"),
+            OrderStatus.Completed => ("bg-success text-white", "Hoàn tất"),
+            OrderStatus.Cancelled => ("bg-danger text-white", "Đã hủy"),
+            _ => ("bg-secondary text-white", status.ToString())
+        };
+        builder.OpenElement(0, "span");
+        builder.AddAttribute(1, "class", $"badge {cls} px-2 py-1");
+        builder.AddContent(2, label);
+        builder.CloseElement();
+    };
+
+    private RenderFragment GetPaymentStatusBadge(PaymentStatus status, PaymentMethod method) => builder =>
+    {
+        var (cls, label) = (status, method) switch
+        {
+            (PaymentStatus.Paid, _) => ("bg-success-subtle text-success border border-success-subtle", "Đã thanh toán"),
+            (PaymentStatus.Cancelled, _) => ("bg-danger-subtle text-danger border border-danger-subtle", "Thanh toán đã hủy"),
+            (PaymentStatus.Unpaid, PaymentMethod.BankTransfer) => ("bg-info-subtle text-info border border-info-subtle", "CK chờ xác nhận"),
+            _ => ("bg-light text-secondary border", "Chưa thanh toán (COD)")
+        };
+        builder.OpenElement(0, "span");
+        builder.AddAttribute(1, "class", $"badge {cls} px-2 py-1");
+        builder.AddContent(2, label);
+        builder.CloseElement();
+    };
+}
+

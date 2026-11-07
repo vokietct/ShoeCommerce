@@ -1,0 +1,399 @@
+@page "/admin/orders/{id:int}"
+@layout Layout.AdminLayout
+@inject IOrderService OrderService
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+
+<div class="mb-4">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb small">
+            <li class="breadcrumb-item"><a href="/admin" class="text-decoration-none">Quản trị</a></li>
+            <li class="breadcrumb-item"><a href="/admin/orders" class="text-decoration-none">Đơn hàng</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Chi tiết đơn #@(order?.OrderCode ?? "")</li>
+        </ol>
+    </nav>
+
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+        <div class="d-flex align-items-center gap-3">
+            <h4 class="fw-bold text-dark mb-0">Đơn Hàng: @(order?.OrderCode ?? "")</h4>
+            @if (order != null)
+            {
+                <span class="status-badge @(order.OrderStatus.ToString().ToLower()) fs-6">
+                    @order.OrderStatus
+                </span>
+            }
+        </div>
+
+        <div class="d-flex gap-2">
+            <a href="/admin/orders" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
+                <i class="bi bi-arrow-left me-1"></i> Danh sách đơn
+            </a>
+        </div>
+    </div>
+</div>
+
+@if (!string.IsNullOrEmpty(alertMessage))
+{
+    <div class="alert @(alertSuccess ? "alert-success" : "alert-danger") alert-dismissible fade show rounded-3 small mb-4" role="alert">
+        <i class="bi @(alertSuccess ? "bi-check-circle" : "bi-exclamation-triangle") me-1"></i>
+        @alertMessage
+        <button type="button" class="btn-close" @onclick="() => alertMessage = null"></button>
+    </div>
+}
+
+@if (isLoading)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border text-primary" role="status"></div>
+        <p class="text-muted mt-2">Đang tải chi tiết đơn hàng...</p>
+    </div>
+}
+else if (order == null)
+{
+    <div class="alert alert-danger text-center py-4">Không tìm thấy đơn hàng.</div>
+}
+else
+{
+    <!-- Order Process / Action Stepper Card -->
+    <div class="bg-white rounded-4 border p-4 mb-4 shadow-sm">
+        <h6 class="fw-bold text-dark mb-3">
+            <i class="bi bi-diagram-3 me-2 text-primary"></i> Tiến Trình Xử Lý Đơn Hàng
+        </h6>
+
+        <!-- Status Flow Badges -->
+        <div class="d-flex flex-wrap align-items-center gap-2 mb-4">
+            <span class="badge @(order.OrderStatus == OrderStatus.Pending ? "bg-warning text-dark" : "bg-light text-secondary border") px-3 py-2 rounded-pill">
+                1. Chờ xác nhận
+            </span>
+            <i class="bi bi-arrow-right text-muted"></i>
+            <span class="badge @(order.OrderStatus == OrderStatus.Confirmed ? "bg-info text-white" : "bg-light text-secondary border") px-3 py-2 rounded-pill">
+                2. Đã xác nhận
+            </span>
+            <i class="bi bi-arrow-right text-muted"></i>
+            <span class="badge @(order.OrderStatus == OrderStatus.Shipping ? "bg-primary text-white" : "bg-light text-secondary border") px-3 py-2 rounded-pill">
+                3. Đang giao
+            </span>
+            <i class="bi bi-arrow-right text-muted"></i>
+            <span class="badge @(order.OrderStatus == OrderStatus.Completed ? "bg-success text-white" : "bg-light text-secondary border") px-3 py-2 rounded-pill">
+                4. Hoàn tất
+            </span>
+            @if (order.OrderStatus == OrderStatus.Cancelled)
+            {
+                <span class="badge bg-danger text-white px-3 py-2 rounded-pill ms-auto">
+                    <i class="bi bi-x-circle me-1"></i> Đơn hàng đã hủy
+                </span>
+            }
+        </div>
+
+        <!-- Next Action Buttons -->
+        <div class="d-flex flex-wrap align-items-center gap-3">
+            @if (order.OrderStatus == OrderStatus.Pending)
+            {
+                <button class="btn btn-primary btn-sm rounded-pill px-4 fw-semibold" @onclick="AdvanceToConfirmed">
+                    <i class="bi bi-check2-circle me-1"></i> Xác Nhận Đơn Hàng
+                </button>
+            }
+            else if (order.OrderStatus == OrderStatus.Confirmed)
+            {
+                <button class="btn btn-primary btn-sm rounded-pill px-4 fw-semibold" @onclick="AdvanceToShipping">
+                    <i class="bi bi-truck me-1"></i> Chuyển Sang "Đang Giao"
+                </button>
+            }
+            else if (order.OrderStatus == OrderStatus.Shipping)
+            {
+                <button class="btn btn-success btn-sm rounded-pill px-4 fw-semibold" @onclick="AdvanceToCompleted">
+                    <i class="bi bi-check-all me-1"></i> Hoàn Tất Đơn Hàng (Đã Giao & Thu Tiền)
+                </button>
+            }
+
+            <!-- Cancel Button: Only when Pending or Confirmed AND Unpaid -->
+            @if ((order.OrderStatus == OrderStatus.Pending || order.OrderStatus == OrderStatus.Confirmed) && order.Payment?.PaymentStatus != PaymentStatus.Paid)
+            {
+                <button class="btn btn-outline-danger btn-sm rounded-pill px-3" @onclick="() => showCancelModal = true">
+                    <i class="bi bi-x-circle me-1"></i> Hủy Đơn Hàng & Hoàn Kho
+                </button>
+            }
+
+            <!-- Edit Shipping Info: Only when Pending -->
+            @if (order.OrderStatus == OrderStatus.Pending)
+            {
+                <button class="btn btn-outline-secondary btn-sm rounded-pill px-3 ms-auto" @onclick="OpenEditShippingModal">
+                    <i class="bi bi-pencil me-1"></i> Sửa Địa Chỉ Giao Hàng
+                </button>
+            }
+        </div>
+    </div>
+
+    <!-- Customer, Shipping & Payment Info -->
+    <div class="row g-4 mb-4">
+        <div class="col-md-6">
+            <div class="bg-white rounded-4 border p-4 h-100 shadow-sm">
+                <h6 class="fw-bold text-dark mb-3">
+                    <i class="bi bi-geo-alt me-1 text-danger"></i> Thông Tin Giao Hàng
+                </h6>
+                <div class="small d-flex flex-column gap-2">
+                    <div>Tài khoản khách: <strong class="text-primary">@(order.Customer?.User?.FullName ?? "Khách hàng")</strong> (Email: @(order.Customer?.User?.Email))</div>
+                    <div>Người nhận hàng: <strong class="text-dark">@order.ReceiverName</strong></div>
+                    <div>Số điện thoại: <strong>@order.Phone</strong></div>
+                    <div>Địa chỉ giao hàng: <strong class="text-dark">@order.ShippingAddress</strong></div>
+                    @if (!string.IsNullOrWhiteSpace(order.Note))
+                    {
+                        <div class="text-secondary">Ghi chú của khách: <em>@order.Note</em></div>
+                    }
+                    @if (order.OrderStatus == OrderStatus.Cancelled && !string.IsNullOrWhiteSpace(order.CancelReason))
+                    {
+                        <div class="alert alert-danger py-2 px-3 mt-2 mb-0">
+                            <strong>Lý do hủy đơn:</strong> @order.CancelReason
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="bg-white rounded-4 border p-4 h-100 shadow-sm">
+                <h6 class="fw-bold text-dark mb-3">
+                    <i class="bi bi-credit-card me-1 text-primary"></i> Thông Tin Thanh Toán
+                </h6>
+                <div class="small d-flex flex-column gap-2">
+                    <div>
+                        Phương thức thanh toán: <strong>@(order.Payment?.PaymentMethod == PaymentMethod.COD ? "Thanh toán khi nhận hàng (COD)" : "Chuyển khoản ngân hàng")</strong>
+                    </div>
+                    <div>
+                        Trạng thái thanh toán:
+                        <span class="badge @(order.Payment?.PaymentStatus == PaymentStatus.Paid ? "bg-success" : (order.Payment?.PaymentStatus == PaymentStatus.Cancelled ? "bg-danger" : "bg-warning text-dark"))">
+                            @order.Payment?.PaymentStatus
+                        </span>
+                    </div>
+                    @if (order.Payment?.ConfirmedAt != null)
+                    {
+                        <div>Thời gian xác nhận thanh toán: @order.Payment.ConfirmedAt.Value.ToString("dd/MM/yyyy HH:mm")</div>
+                        <div>Người xác nhận: <strong>@(order.Payment.ConfirmedByUser?.FullName ?? "Hệ thống")</strong></div>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(order.Payment?.TransferReference))
+                    {
+                        <div>Mã đối soát / ghi chú: <span class="font-monospace text-primary">@order.Payment.TransferReference</span></div>
+                    }
+                    <div class="border-top pt-2 mt-2">
+                        <div>Tiền hàng: <strong>@order.TotalAmount.ToString("N0") ₫</strong></div>
+                        @if (order.DiscountAmount > 0)
+                        {
+                            <div class="text-success">Giảm giá: <strong>-@order.DiscountAmount.ToString("N0") ₫</strong> (@order.PromoCodeSnapshot)</div>
+                        }
+                        <div class="fs-6 fw-bold text-danger mt-1">Phải thu: @((order.TotalAmount - order.DiscountAmount).ToString("N0")) ₫</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Items Table -->
+    <div class="table-custom shadow-sm mb-4">
+        <div class="p-3 bg-light border-bottom fw-bold text-dark">
+            Chi Tiết Sản Phẩm (@order.OrderDetails.Count mục)
+        </div>
+        <div class="table-responsive">
+            <table class="table align-middle small mb-0">
+                <thead>
+                    <tr>
+                        <th>Sản Phẩm</th>
+                        <th>Mã SKU</th>
+                        <th>Kích Cỡ</th>
+                        <th>Màu Sắc</th>
+                        <th class="text-center">Số Lượng Đặt</th>
+                        <th class="text-end">Đơn Giá Lúc Đặt</th>
+                        <th class="text-end">Thành Tiền</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var d in order.OrderDetails)
+                    {
+                        <tr>
+                            <td class="fw-semibold">@d.ProductNameSnapshot</td>
+                            <td class="font-monospace text-secondary">@d.SkuSnapshot</td>
+                            <td>Size @d.SizeSnapshot</td>
+                            <td>@d.ColorSnapshot</td>
+                            <td class="text-center fw-bold">@d.Quantity</td>
+                            <td class="text-end">@d.UnitPrice.ToString("N0") ₫</td>
+                            <td class="text-end fw-bold">@((d.Quantity * d.UnitPrice).ToString("N0")) ₫</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Order Status History -->
+    <div class="bg-white rounded-4 border p-4 shadow-sm mb-4">
+        <h6 class="fw-bold text-dark mb-3">
+            <i class="bi bi-clock-history me-1"></i> Lịch Sử Trạng Thái & Thao Tác
+        </h6>
+        @if (order.StatusHistories != null && order.StatusHistories.Any())
+        {
+            <div class="d-flex flex-column gap-2">
+                @foreach (var h in order.StatusHistories.OrderByDescending(x => x.ChangedAt))
+                {
+                    <div class="d-flex align-items-center justify-content-between p-2 border rounded-3 bg-light small">
+                        <div>
+                            <span class="badge @(h.NewStatus == OrderStatus.Completed ? "bg-success" : (h.NewStatus == OrderStatus.Cancelled ? "bg-danger" : "bg-primary")) me-2">
+                                @h.NewStatus
+                            </span>
+                            <span class="fw-semibold text-dark">@h.Note</span>
+                        </div>
+                        <div class="text-muted" style="font-size: 0.75rem;">
+                            Bởi: <strong>@(h.ChangedByUser?.FullName ?? "Hệ thống")</strong> · @h.ChangedAt.ToString("dd/MM/yyyy HH:mm:ss")
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+}
+
+<!-- Cancel Order Modal -->
+@if (showCancelModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content rounded-4 border-0">
+                <div class="modal-header border-bottom">
+                    <h5 class="modal-title fw-bold text-danger">Hủy Đơn Hàng & Tự Động Hoàn Kho</h5>
+                    <button type="button" class="btn-close" @onclick="() => showCancelModal = false"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="small text-secondary mb-3">
+                        Thao tác này sẽ hủy đơn hàng và tự động tạo phiếu nhập kho để hoàn trả toàn bộ số lượng các biến thể giày về kho chung.
+                    </p>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Lý do hủy đơn <span class="text-danger">*</span></label>
+                        <textarea class="form-control" rows="3" placeholder="Nhập lý do hủy đơn..." @bind="cancelReasonInput"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer border-top">
+                    <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill px-3" @onclick="() => showCancelModal = false">Đóng</button>
+                    <button type="button" class="btn btn-danger btn-sm rounded-pill px-4" @onclick="ConfirmCancelOrder">Xác Nhận Hủy Đơn</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Edit Shipping Info Modal -->
+@if (showEditShippingModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content rounded-4 border-0">
+                <div class="modal-header border-bottom">
+                    <h5 class="modal-title fw-bold">Sửa Thông Tin Người Nhận & Địa Chỉ</h5>
+                    <button type="button" class="btn-close" @onclick="() => showEditShippingModal = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Họ tên người nhận <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" @bind="editReceiver" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Số điện thoại <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" @bind="editPhone" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Địa chỉ giao hàng <span class="text-danger">*</span></label>
+                        <textarea class="form-control" rows="3" @bind="editAddress"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Ghi chú</label>
+                        <input type="text" class="form-control" @bind="editNote" />
+                    </div>
+                </div>
+                <div class="modal-footer border-top">
+                    <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill px-3" @onclick="() => showEditShippingModal = false">Hủy</button>
+                    <button type="button" class="btn btn-dark btn-sm rounded-pill px-4" @onclick="SaveShippingInfo">Lưu Thay Đổi</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private Order? order;
+    private bool isLoading = true;
+    private string? alertMessage;
+    private bool alertSuccess = true;
+
+    private bool showCancelModal = false;
+    private string cancelReasonInput = "";
+
+    private bool showEditShippingModal = false;
+    private string editReceiver = "";
+    private string editPhone = "";
+    private string editAddress = "";
+    private string editNote = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadOrderDetail();
+    }
+
+    private async Task LoadOrderDetail()
+    {
+        isLoading = true;
+        order = await OrderService.GetAdminOrderDetailAsync(Id);
+        isLoading = false;
+    }
+
+    private async Task AdvanceToConfirmed() => await AdvanceStatus(OrderStatus.Confirmed, "Xác nhận đơn hàng đủ điều kiện giao");
+    private async Task AdvanceToShipping() => await AdvanceStatus(OrderStatus.Shipping, "Bàn giao cho đơn vị vận chuyển");
+    private async Task AdvanceToCompleted() => await AdvanceStatus(OrderStatus.Completed, "Khách đã nhận hàng thành công");
+
+    private async Task AdvanceStatus(OrderStatus nextStatus, string note)
+    {
+        if (AuthService.CurrentUser == null || order == null) return;
+        var res = await OrderService.UpdateOrderStatusAsync(order.OrderId, nextStatus, AuthService.CurrentUser.UserId, note);
+        alertSuccess = res.Success;
+        alertMessage = res.Message;
+        await LoadOrderDetail();
+    }
+
+    private async Task ConfirmCancelOrder()
+    {
+        if (string.IsNullOrWhiteSpace(cancelReasonInput))
+        {
+            alertSuccess = false;
+            alertMessage = "Vui lòng nhập lý do hủy đơn.";
+            return;
+        }
+
+        if (AuthService.CurrentUser == null || order == null) return;
+        var res = await OrderService.CancelOrderAdminAsync(order.OrderId, cancelReasonInput, AuthService.CurrentUser.UserId);
+        alertSuccess = res.Success;
+        alertMessage = res.Message;
+        showCancelModal = false;
+        await LoadOrderDetail();
+    }
+
+    private void OpenEditShippingModal()
+    {
+        if (order == null) return;
+        editReceiver = order.ReceiverName;
+        editPhone = order.Phone;
+        editAddress = order.ShippingAddress;
+        editNote = order.Note ?? "";
+        showEditShippingModal = true;
+    }
+
+    private async Task SaveShippingInfo()
+    {
+        if (order == null) return;
+        var res = await OrderService.UpdateOrderShippingInfoAsync(order.OrderId, editReceiver, editPhone, editAddress, editNote);
+        alertSuccess = res.Success;
+        alertMessage = res.Message;
+        showEditShippingModal = false;
+        await LoadOrderDetail();
+    }
+}
+

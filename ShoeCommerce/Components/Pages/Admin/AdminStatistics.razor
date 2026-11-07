@@ -1,0 +1,479 @@
+@page "/admin/statistics"
+@layout Layout.AdminLayout
+@inject IStatisticsService StatisticsService
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+
+<div class="mb-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+        <div>
+            <h4 class="fw-bold text-dark mb-1">
+                <i class="bi bi-graph-up-arrow text-primary me-2"></i> Báo Cáo & Thống Kê Doanh Thu
+            </h4>
+            <p class="text-secondary small mb-0">
+                Thống kê số liệu kinh doanh, doanh thu thực tế (đơn Hoàn tất & Đã thanh toán), sản phẩm bán chạy và tình trạng tồn kho.
+            </p>
+        </div>
+
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-secondary btn-sm rounded-pill px-3" @onclick="ReloadAll">
+                <i class="bi bi-arrow-clockwise me-1"></i> Cập Nhật
+            </button>
+        </div>
+    </div>
+</div>
+
+@if (!AuthService.IsAdmin)
+{
+    <div class="alert alert-warning rounded-4 p-4 text-center my-4">
+        <i class="bi bi-shield-lock-fill fs-1 text-warning mb-2 d-block"></i>
+        <h5 class="fw-bold">Quyền Truy Cập Hạn Chế</h5>
+        <p class="text-secondary small mb-3">
+            Tài khoản Nhân viên không có quyền truy cập vào báo cáo phân tích doanh thu và số liệu tài chính chuyên sâu theo quy định bảo mật của hệ thống.
+        </p>
+        <a href="/admin" class="btn btn-dark btn-sm rounded-pill px-4">Quay Về Bàn Làm Việc</a>
+    </div>
+}
+else
+{
+    <!-- Date Range Filter Bar -->
+    <div class="bg-white rounded-4 border p-3 mb-4 shadow-sm">
+        <div class="row g-3 align-items-center">
+            <div class="col-lg-5 col-md-6">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="small text-secondary fw-semibold text-nowrap">Thời gian:</span>
+                    <input type="date" class="form-control form-control-sm" @bind="fromDate" />
+                    <span class="text-secondary">đến</span>
+                    <input type="date" class="form-control form-control-sm" @bind="toDate" />
+                    <button class="btn btn-dark btn-sm rounded-pill px-3" @onclick="LoadRevenueData">
+                        Lọc
+                    </button>
+                </div>
+            </div>
+
+            <div class="col-lg-7 col-md-6 text-md-end">
+                <div class="btn-group btn-group-sm">
+                    <button class="btn @(filterPreset == "7days" ? "btn-dark" : "btn-outline-secondary")" @onclick='() => SetPreset("7days")'>7 ngày qua</button>
+                    <button class="btn @(filterPreset == "30days" ? "btn-dark" : "btn-outline-secondary")" @onclick='() => SetPreset("30days")'>30 ngày qua</button>
+                    <button class="btn @(filterPreset == "thismonth" ? "btn-dark" : "btn-outline-secondary")" @onclick='() => SetPreset("thismonth")'>Tháng này</button>
+                    <button class="btn @(filterPreset == "thisyear" ? "btn-dark" : "btn-outline-secondary")" @onclick='() => SetPreset("thisyear")'>Năm nay</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="text-muted mt-2 small">Đang tổng hợp báo cáo và thống kê...</p>
+        </div>
+    }
+    else
+    {
+        <!-- KPI Cards in Range -->
+        <div class="row g-3 mb-4">
+            <div class="col-xl-3 col-sm-6">
+                <div class="card border-0 shadow-sm rounded-4 h-100 bg-dark text-white p-3">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <span class="small text-white-50">Doanh thu trong kỳ</span>
+                        <div class="rounded-circle bg-white bg-opacity-25 p-2 d-flex align-items-center justify-content-center" style="width: 36px; height: 36px;">
+                            <i class="bi bi-cash-stack text-white"></i>
+                        </div>
+                    </div>
+                    <h3 class="fw-bold mb-1">@totalRevenueInRange.ToString("N0") ₫</h3>
+                    <div class="small text-white-50">Chỉ tính đơn Hoàn tất & Đã thanh toán</div>
+                </div>
+            </div>
+
+            <div class="col-xl-3 col-sm-6">
+                <div class="card border-0 shadow-sm rounded-4 h-100 bg-white p-3 border-start border-4 border-success">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <span class="small text-secondary">Đơn hàng hoàn tất</span>
+                        <div class="rounded-circle bg-success bg-opacity-10 p-2 d-flex align-items-center justify-content-center" style="width: 36px; height: 36px;">
+                            <i class="bi bi-check2-circle text-success fs-5"></i>
+                        </div>
+                    </div>
+                    <h3 class="fw-bold text-dark mb-1">@totalCompletedOrdersInRange</h3>
+                    <div class="small text-secondary">Đã giao và thu tiền thành công</div>
+                </div>
+            </div>
+
+            <div class="col-xl-3 col-sm-6">
+                <div class="card border-0 shadow-sm rounded-4 h-100 bg-white p-3 border-start border-4 border-primary">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <span class="small text-secondary">Giá trị đơn TB (AOV)</span>
+                        <div class="rounded-circle bg-primary bg-opacity-10 p-2 d-flex align-items-center justify-content-center" style="width: 36px; height: 36px;">
+                            <i class="bi bi-calculator text-primary fs-5"></i>
+                        </div>
+                    </div>
+                    <h3 class="fw-bold text-dark mb-1">@(averageOrderValue.ToString("N0")) ₫</h3>
+                    <div class="small text-secondary">Doanh thu / đơn hoàn tất</div>
+                </div>
+            </div>
+
+            <div class="col-xl-3 col-sm-6">
+                <div class="card border-0 shadow-sm rounded-4 h-100 bg-white p-3 border-start border-4 border-warning">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <span class="small text-secondary">Doanh thu cao nhất/mốc</span>
+                        <div class="rounded-circle bg-warning bg-opacity-10 p-2 d-flex align-items-center justify-content-center" style="width: 36px; height: 36px;">
+                            <i class="bi bi-trophy text-warning fs-5"></i>
+                        </div>
+                    </div>
+                    <h3 class="fw-bold text-dark mb-1">@maxRevenueInPeriod.ToString("N0") ₫</h3>
+                    <div class="small text-secondary">Mốc cao nhất: @maxRevenueLabel</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Revenue Chart & Table Section -->
+        <div class="row g-4 mb-4">
+            <div class="col-lg-8">
+                <div class="card border-0 shadow-sm rounded-4 h-100 p-4 bg-white">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6 class="fw-bold text-dark mb-0">
+                            <i class="bi bi-bar-chart-fill text-primary me-2"></i> Biểu Đồ Doanh Thu (@fromDate.ToString("dd/MM/yyyy") - @toDate.ToString("dd/MM/yyyy"))
+                        </h6>
+                        <span class="badge bg-light text-secondary border">Đơn vị: VNĐ</span>
+                    </div>
+
+                    @if (revenueList != null && revenueList.Any(r => r.Revenue > 0))
+                    {
+                        <!-- Pure CSS Bar Chart -->
+                        <div class="pt-4 pb-2 px-2" style="height: 240px;">
+                            <div class="d-flex align-items-end justify-content-between h-100 gap-1 border-bottom pb-2">
+                                @{
+                                    decimal maxVal = revenueList.Max(r => r.Revenue);
+                                    if (maxVal == 0) maxVal = 1;
+                                }
+                                @foreach (var item in revenueList)
+                                {
+                                    int heightPct = (int)Math.Max(6, (item.Revenue / maxVal) * 100);
+                                    <div class="d-flex flex-column align-items-center flex-grow-1" style="min-width: 14px;" title="@item.DateLabel: @item.Revenue.ToString("N0") ₫ (@item.OrderCount đơn)">
+                                        <div class="w-100 rounded-top @(item.Revenue > 0 ? "bg-primary" : "bg-light") position-relative" 
+                                             style="height: @(heightPct)%; transition: height 0.3s ease; opacity: @(item.Revenue > 0 ? "0.85" : "0.3");">
+                                        </div>
+                                        <span class="text-secondary mt-1 text-truncate" style="font-size: 0.68rem; max-width: 38px;">
+                                            @item.DateLabel
+                                        </span>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="text-center py-5">
+                            <i class="bi bi-bar-chart text-muted fs-1"></i>
+                            <p class="text-secondary small mt-2">Chưa có phát sinh doanh thu hoàn tất trong khoảng thời gian này.</p>
+                        </div>
+                    }
+
+                    <!-- Detailed Table Collapse / Scroll -->
+                    <div class="table-responsive mt-3" style="max-height: 220px; overflow-y: auto;">
+                        <table class="table table-sm table-hover align-middle mb-0">
+                            <thead class="table-light text-secondary sticky-top small">
+                                <tr>
+                                    <th>Thời Gian</th>
+                                    <th class="text-center">Số Đơn Hoàn Tất</th>
+                                    <th class="text-end">Doanh Thu</th>
+                                </tr>
+                            </thead>
+                            <tbody class="small">
+                                @if (revenueList != null)
+                                {
+                                    @foreach (var item in revenueList)
+                                    {
+                                        <tr>
+                                            <td class="fw-semibold text-dark">@item.DateLabel</td>
+                                            <td class="text-center">
+                                                <span class="badge @(item.OrderCount > 0 ? "bg-primary bg-opacity-10 text-primary" : "bg-light text-secondary")">
+                                                    @item.OrderCount đơn
+                                                </span>
+                                            </td>
+                                            <td class="text-end fw-bold @(item.Revenue > 0 ? "text-success" : "text-secondary")">
+                                                @item.Revenue.ToString("N0") ₫
+                                            </td>
+                                        </tr>
+                                    }
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Order Status Breakdown -->
+            <div class="col-lg-4">
+                <div class="card border-0 shadow-sm rounded-4 h-100 p-4 bg-white">
+                    <h6 class="fw-bold text-dark mb-3">
+                        <i class="bi bi-pie-chart-fill text-warning me-2"></i> Phân Bổ Trạng Thái Đơn
+                    </h6>
+                    <p class="text-secondary small mb-3">Tổng số đơn hàng toàn hệ thống theo từng giai đoạn xử lý.</p>
+
+                    @if (orderBreakdown != null)
+                    {
+                        int totalAllOrders = orderBreakdown.Sum(b => b.Count);
+
+                        <div class="d-flex flex-column gap-3 mb-4">
+                            @foreach (var item in orderBreakdown)
+                            {
+                                int pct = totalAllOrders > 0 ? (int)Math.Round((double)item.Count / totalAllOrders * 100) : 0;
+                                <div>
+                                    <div class="d-flex justify-content-between align-items-center mb-1 small">
+                                        <span class="fw-semibold text-dark">@item.StatusName</span>
+                                        <span class="text-secondary">@item.Count đơn (@pct%)</span>
+                                    </div>
+                                    <div class="progress" style="height: 8px;">
+                                        <div class="progress-bar bg-@item.ColorClass" role="progressbar" style="width: @pct%"></div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+
+                        <div class="p-3 bg-light rounded-3 border small">
+                            <div class="d-flex justify-content-between mb-1">
+                                <span class="text-secondary">Tổng số đơn toàn bộ:</span>
+                                <strong class="text-dark">@totalAllOrders đơn</strong>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <span class="text-secondary">Tỷ lệ hủy đơn:</span>
+                                <strong class="text-danger">
+                                    @(totalAllOrders > 0 ? ((double)orderBreakdown.First(b => b.Status == OrderStatus.Cancelled).Count / totalAllOrders * 100).ToString("0.0") : "0")%
+                                </strong>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <!-- Top Selling Products & Low Stock Alerts -->
+        <div class="row g-4 mb-4">
+            <!-- Top Selling -->
+            <div class="col-lg-7">
+                <div class="card border-0 shadow-sm rounded-4 p-4 bg-white h-100">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6 class="fw-bold text-dark mb-0">
+                            <i class="bi bi-star-fill text-warning me-2"></i> Top 5 Sản Phẩm Bán Chạy Nhất
+                        </h6>
+                        <span class="text-secondary small">Tính từ các đơn Hoàn tất</span>
+                    </div>
+
+                    @if (topProducts != null && topProducts.Count > 0)
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle mb-0">
+                                <thead class="table-light text-secondary small">
+                                    <tr>
+                                        <th style="width: 40px;">#</th>
+                                        <th>Sản Phẩm</th>
+                                        <th class="text-center">Số Lượng Đã Bán</th>
+                                        <th class="text-end">Doanh Số</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="small">
+                                    @for (int i = 0; i < topProducts.Count; i++)
+                                    {
+                                        var p = topProducts[i];
+                                        <tr>
+                                            <td>
+                                                @if (i == 0)
+                                                {
+                                                    <span class="badge bg-warning text-dark rounded-circle px-2 py-1">1</span>
+                                                }
+                                                else if (i == 1)
+                                                {
+                                                    <span class="badge bg-secondary text-white rounded-circle px-2 py-1">2</span>
+                                                }
+                                                else if (i == 2)
+                                                {
+                                                    <span class="badge bg-danger bg-opacity-75 text-white rounded-circle px-2 py-1">3</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-secondary fw-semibold">@(i + 1)</span>
+                                                }
+                                            </td>
+                                            <td>
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <img src="@(string.IsNullOrEmpty(p.ThumbnailUrl) ? "/images/placeholder-shoe.png" : p.ThumbnailUrl)" 
+                                                         alt="@p.ProductName" class="rounded-3 border object-fit-cover" 
+                                                         style="width: 40px; height: 40px;" />
+                                                    <span class="fw-bold text-dark text-truncate" style="max-width: 260px;">
+                                                        @p.ProductName
+                                                    </span>
+                                                </div>
+                                            </td>
+                                            <td class="text-center">
+                                                <span class="badge bg-success bg-opacity-10 text-success fw-bold px-2 py-1">
+                                                    @p.TotalQuantitySold đôi
+                                                </span>
+                                            </td>
+                                            <td class="text-end fw-bold text-dark">
+                                                @p.TotalRevenue.ToString("N0") ₫
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="text-center py-4">
+                            <p class="text-secondary small">Chưa có đủ số liệu đơn hàng hoàn tất để xếp hạng.</p>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <!-- Low Stock Variants Alert Table -->
+            <div class="col-lg-5">
+                <div class="card border-0 shadow-sm rounded-4 p-4 bg-white h-100">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6 class="fw-bold text-danger mb-0">
+                            <i class="bi bi-exclamation-triangle-fill text-danger me-2"></i> Cảnh Báo Tồn Kho Thấp
+                        </h6>
+                        <a href="/admin/inventory" class="btn btn-outline-danger btn-sm rounded-pill px-3" style="font-size: 0.75rem;">
+                            Kho hàng <i class="bi bi-chevron-right ms-1"></i>
+                        </a>
+                    </div>
+                    <p class="text-secondary small mb-3">Các biến thể có số lượng tồn ≤ ngưỡng an toàn cần nhập thêm.</p>
+
+                    @if (lowStockVariants != null && lowStockVariants.Count > 0)
+                    {
+                        <div class="table-responsive" style="max-height: 250px; overflow-y: auto;">
+                            <table class="table table-sm table-hover align-middle mb-0">
+                                <thead class="table-light text-secondary small sticky-top">
+                                    <tr>
+                                        <th>Sản Phẩm & Biến Thể</th>
+                                        <th class="text-center">Tồn Kho</th>
+                                        <th class="text-end">Ngưỡng</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="small">
+                                    @foreach (var v in lowStockVariants)
+                                    {
+                                        <tr>
+                                            <td>
+                                                <div class="fw-semibold text-dark text-truncate" style="max-width: 180px;">@v.ProductName</div>
+                                                <div class="text-secondary" style="font-size: 0.72rem;">
+                                                    SKU: @v.Sku · Size: @v.Size · @v.Color
+                                                </div>
+                                            </td>
+                                            <td class="text-center">
+                                                @if (v.StockQuantity == 0)
+                                                {
+                                                    <span class="badge bg-danger rounded-pill">Hết hàng</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge bg-warning text-dark rounded-pill">@v.StockQuantity</span>
+                                                }
+                                            </td>
+                                            <td class="text-end text-secondary">
+                                                @v.LowStockThreshold
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="text-center py-4">
+                            <i class="bi bi-shield-check text-success fs-2"></i>
+                            <p class="text-secondary small mt-2">Kho hàng đang ở trạng thái an toàn. Không có biến thể nào chạm ngưỡng cảnh báo.</p>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    private bool isLoading = true;
+    private DateTime fromDate = DateTime.Today.AddDays(-29);
+    private DateTime toDate = DateTime.Today;
+    private string filterPreset = "30days";
+
+    private List<RevenueByDateDto>? revenueList;
+    private List<StatusCountDto>? orderBreakdown;
+    private List<TopProductDto>? topProducts;
+    private List<StockVariantView>? lowStockVariants;
+
+    private decimal totalRevenueInRange => revenueList?.Sum(r => r.Revenue) ?? 0;
+    private int totalCompletedOrdersInRange => revenueList?.Sum(r => r.OrderCount) ?? 0;
+    private decimal averageOrderValue => totalCompletedOrdersInRange > 0 ? (totalRevenueInRange / totalCompletedOrdersInRange) : 0;
+    private decimal maxRevenueInPeriod => (revenueList != null && revenueList.Count > 0) ? revenueList.Max(r => r.Revenue) : 0;
+    private string maxRevenueLabel => revenueList?.FirstOrDefault(r => r.Revenue == maxRevenueInPeriod && maxRevenueInPeriod > 0)?.DateLabel ?? "-";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ReloadAll();
+    }
+
+    private async Task SetPreset(string preset)
+    {
+        filterPreset = preset;
+        var today = DateTime.Today;
+
+        switch (preset)
+        {
+            case "7days":
+                fromDate = today.AddDays(-6);
+                toDate = today;
+                break;
+            case "30days":
+                fromDate = today.AddDays(-29);
+                toDate = today;
+                break;
+            case "thismonth":
+                fromDate = new DateTime(today.Year, today.Month, 1);
+                toDate = today;
+                break;
+            case "thisyear":
+                fromDate = new DateTime(today.Year, 1, 1);
+                toDate = today;
+                break;
+        }
+
+        await LoadRevenueData();
+    }
+
+    private async Task LoadRevenueData()
+    {
+        try
+        {
+            revenueList = await StatisticsService.GetRevenueByDateAsync(fromDate, toDate);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading revenue data: {ex.Message}");
+        }
+    }
+
+    private async Task ReloadAll()
+    {
+        isLoading = true;
+        try
+        {
+            await LoadRevenueData();
+            orderBreakdown = await StatisticsService.GetOrderStatusBreakdownAsync();
+            topProducts = await StatisticsService.GetTopSellingProductsAsync(5);
+            lowStockVariants = await StatisticsService.GetLowAndOutOfStockVariantsAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error reloading statistics: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+}
+

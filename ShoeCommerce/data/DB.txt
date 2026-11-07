@@ -122,7 +122,7 @@ CREATE TABLE customer_addresses (
     CONSTRAINT fk_addresses_customer
         FOREIGN KEY (customer_id)
         REFERENCES customers(customer_id)
-        ON DELETE CASCADE
+        ON DELETE RESTRICT
 ) ENGINE = InnoDB;
 
 

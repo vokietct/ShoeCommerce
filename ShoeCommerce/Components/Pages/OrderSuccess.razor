@@ -1,0 +1,191 @@
+@page "/order-success/{orderCode}"
+@inject IOrderService OrderService
+@inject IAuthService AuthService
+@inject IDbContextFactory<ShoeStoreDbContext> ContextFactory
+@inject NavigationManager Navigation
+
+<div class="container py-5" style="max-width: 800px;">
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="text-muted mt-2">Đang tải thông tin đơn hàng...</p>
+        </div>
+    }
+    else if (order == null)
+    {
+        <div class="bg-white rounded-4 border p-5 text-center">
+            <i class="bi bi-question-circle fs-1 text-secondary mb-3 d-block"></i>
+            <h4 class="fw-bold">Không tìm thấy mã đơn hàng</h4>
+            <a href="/" class="btn btn-dark rounded-pill mt-3 px-4">Về trang chủ</a>
+        </div>
+    }
+    else
+    {
+        <!-- Success Confirmation Card -->
+        <div class="bg-white rounded-4 border p-4 p-md-5 text-center mb-4 shadow-sm">
+            <div class="bg-success text-white rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 72px; height: 72px;">
+                <i class="bi bi-check-lg fs-1"></i>
+            </div>
+            <h3 class="fw-bold text-dark mb-2">Đặt Hàng Thành Công!</h3>
+            <p class="text-secondary small mb-3">
+                Cảm ơn bạn đã mua sắm tại ShoeStore. Đơn hàng của bạn đã được ghi nhận vào hệ thống.
+            </p>
+            <div class="p-3 bg-light rounded-3 d-inline-block text-start mb-2">
+                <span class="text-secondary small d-block">Mã đơn hàng của bạn:</span>
+                <span class="fs-4 fw-bold text-primary font-monospace">@order.OrderCode</span>
+            </div>
+            <div class="small text-secondary">
+                Trạng thái hiện tại: <span class="badge bg-warning text-dark px-2 py-1">Chờ xác nhận</span>
+            </div>
+        </div>
+
+        <!-- Bank Transfer Details Box (If BankTransfer chosen) -->
+        @if (order.Payment?.PaymentMethod == PaymentMethod.BankTransfer)
+        {
+            <div class="bg-white rounded-4 border border-primary p-4 mb-4 shadow-sm">
+                <div class="d-flex align-items-center gap-2 mb-3">
+                    <i class="bi bi-bank fs-4 text-primary"></i>
+                    <h5 class="fw-bold text-primary mb-0">Thông Tin Chuyển Khoản Ngân Hàng</h5>
+                </div>
+                <p class="text-secondary small mb-3">
+                    Vui lòng chuyển khoản đúng số tiền và nội dung chuyển khoản dưới đây. Quản lý / Nhân viên sẽ kiểm tra sao kê và xác nhận đơn hàng của bạn ngay khi nhận được tiền.
+                </p>
+
+                <div class="bg-light p-3 rounded-3 mb-3">
+                    <div class="row g-2 small">
+                        <div class="col-sm-4 text-secondary">Ngân hàng:</div>
+                        <div class="col-sm-8 fw-bold text-dark">Ngân hàng Ngoại thương Việt Nam (Vietcombank)</div>
+
+                        <div class="col-sm-4 text-secondary">Số tài khoản:</div>
+                        <div class="col-sm-8 fw-bold fs-6 text-primary">1029384756</div>
+
+                        <div class="col-sm-4 text-secondary">Chủ tài khoản:</div>
+                        <div class="col-sm-8 fw-bold text-dark">CỬA HÀNG GIÀY SHOESTORE</div>
+
+                        <div class="col-sm-4 text-secondary">Số tiền cần chuyển:</div>
+                        <div class="col-sm-8 fw-extrabold fs-5 text-danger">@((order.TotalAmount - order.DiscountAmount).ToString("N0")) ₫</div>
+
+                        <div class="col-sm-4 text-secondary">Nội dung chuyển khoản:</div>
+                        <div class="col-sm-8 fw-bold text-dark">
+                            <span class="bg-white border px-2 py-1 rounded text-primary font-monospace">@order.OrderCode</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="small text-muted">
+                    <i class="bi bi-info-circle me-1"></i> Lưu ý: Đơn hàng chuyển khoản cần được xác nhận thanh toán trước khi chuyển sang trạng thái "Đang giao".
+                </div>
+            </div>
+        }
+
+        <!-- Order Summary Card -->
+        <div class="bg-white rounded-4 border p-4 mb-4">
+            <h5 class="fw-bold text-dark mb-3">Chi Tiết Đơn Hàng</h5>
+
+            <div class="row g-3 mb-4">
+                <div class="col-sm-6">
+                    <div class="p-3 bg-light rounded-3 h-100 small">
+                        <strong class="d-block mb-1 text-dark">Thông tin người nhận:</strong>
+                        <div>Họ tên: @order.ReceiverName</div>
+                        <div>Số điện thoại: @order.Phone</div>
+                        <div>Địa chỉ: @order.ShippingAddress</div>
+                        @if (!string.IsNullOrWhiteSpace(order.Note))
+                        {
+                            <div class="text-secondary mt-1">Ghi chú: @order.Note</div>
+                        }
+                    </div>
+                </div>
+                <div class="col-sm-6">
+                    <div class="p-3 bg-light rounded-3 h-100 small">
+                        <strong class="d-block mb-1 text-dark">Phương thức thanh toán:</strong>
+                        <div>
+                            Hình thức: <strong>@(order.Payment?.PaymentMethod == PaymentMethod.COD ? "Thanh toán khi nhận hàng (COD)" : "Chuyển khoản ngân hàng")</strong>
+                        </div>
+                        <div>
+                            Trạng thái thanh toán: <span class="badge bg-warning text-dark">Chưa thanh toán</span>
+                        </div>
+                        <div>Ngày đặt: @order.CreatedAt.ToString("dd/MM/yyyy HH:mm")</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Items table -->
+            <div class="table-responsive">
+                <table class="table align-middle small mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Sản phẩm</th>
+                            <th>Biến thể</th>
+                            <th class="text-center">Số lượng</th>
+                            <th class="text-end">Đơn giá</th>
+                            <th class="text-end">Thành tiền</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var detail in order.OrderDetails)
+                        {
+                            <tr>
+                                <td class="fw-semibold">@detail.ProductNameSnapshot</td>
+                                <td class="text-secondary">Size: @detail.SizeSnapshot · @detail.ColorSnapshot</td>
+                                <td class="text-center">@detail.Quantity</td>
+                                <td class="text-end">@detail.UnitPrice.ToString("N0") ₫</td>
+                                <td class="text-end fw-bold">@((detail.Quantity * detail.UnitPrice).ToString("N0")) ₫</td>
+                            </tr>
+                        }
+                    </tbody>
+                    <tfoot class="border-top">
+                        <tr>
+                            <td colspan="4" class="text-end text-secondary">Tiền hàng:</td>
+                            <td class="text-end fw-semibold">@order.TotalAmount.ToString("N0") ₫</td>
+                        </tr>
+                        @if (order.DiscountAmount > 0)
+                        {
+                            <tr class="text-success">
+                                <td colspan="4" class="text-end">Giảm giá (@(order.PromoCodeSnapshot ?? "Khuyến mãi")):</td>
+                                <td class="text-end fw-bold">-@order.DiscountAmount.ToString("N0") ₫</td>
+                            </tr>
+                        }
+                        <tr>
+                            <td colspan="4" class="text-end fw-bold text-dark fs-6">Tổng thanh toán:</td>
+                            <td class="text-end fw-bold text-danger fs-5">
+                                @((order.TotalAmount - order.DiscountAmount).ToString("N0")) ₫
+                            </td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="d-flex flex-wrap justify-content-center gap-3">
+            <a href="/orders" class="btn btn-outline-dark rounded-pill px-4">
+                <i class="bi bi-receipt me-1"></i> Quản Lý Đơn Hàng Của Tôi
+            </a>
+            <a href="/products" class="btn btn-dark rounded-pill px-4">
+                <i class="bi bi-shop me-1"></i> Tiếp Tục Mua Sắm
+            </a>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public string OrderCode { get; set; } = "";
+
+    private Order? order;
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await using var context = await ContextFactory.CreateDbContextAsync();
+        order = await context.Orders
+            .AsNoTracking()
+            .Include(o => o.Payment)
+            .Include(o => o.OrderDetails)
+            .FirstOrDefaultAsync(o => o.OrderCode == OrderCode);
+
+        isLoading = false;
+    }
+}
+

@@ -1,0 +1,318 @@
+@page "/admin/stock-documents/new"
+@layout Layout.AdminLayout
+@inject IInventoryService InventoryService
+@inject ISupplierService SupplierService
+@inject IProductService ProductService
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+
+<div class="mb-4" style="max-width: 960px;">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb small">
+            <li class="breadcrumb-item"><a href="/admin" class="text-decoration-none">Quản trị</a></li>
+            <li class="breadcrumb-item"><a href="/admin/stock-documents" class="text-decoration-none">Phiếu kho</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Lập phiếu kho mới</li>
+        </ol>
+    </nav>
+
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <h4 class="fw-bold text-dark mb-1">
+                <i class="bi bi-file-earmark-plus me-2 text-primary"></i> Lập Phiếu Kho Mới (Màn hình 25)
+            </h4>
+            <p class="text-secondary small mb-0">Lập phiếu nhập hàng từ nhà cung cấp hoặc điều chỉnh kho kiểm kê</p>
+        </div>
+        <a href="/admin/stock-documents" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
+            <i class="bi bi-arrow-left me-1"></i> Quay lại
+        </a>
+    </div>
+</div>
+
+<div class="bg-white rounded-4 border p-4 p-md-5 shadow-sm mb-5" style="max-width: 960px;">
+    @if (!AuthService.IsAdmin)
+    {
+        <div class="alert alert-danger py-4 text-center">
+            <i class="bi bi-shield-x fs-2 d-block mb-2"></i>
+            Bạn không có quyền thực hiện nghiệp vụ này. Chỉ có Quản lý (Admin) mới được lập và xác nhận phiếu kho.
+        </div>
+    }
+    else
+    {
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert alert-danger py-2 px-3 small rounded-3 mb-4">
+                <i class="bi bi-exclamation-triangle-fill me-1"></i> @errorMessage
+            </div>
+        }
+
+        <!-- 1. Document Header Form -->
+        <div class="row g-3 mb-4">
+            <div class="col-md-4">
+                <label class="form-label small fw-semibold">Loại phiếu kho <span class="text-danger">*</span></label>
+                <select class="form-select" @bind="selectedType">
+                    <option value="@StockDocumentType.PurchaseReceipt">Phiếu nhập hàng từ nhà cung cấp</option>
+                    <option value="@StockDocumentType.AdjustmentIn">Phiếu nhập điều chỉnh tồn kho</option>
+                    <option value="@StockDocumentType.AdjustmentOut">Phiếu xuất điều chỉnh tồn kho</option>
+                </select>
+            </div>
+
+            @if (selectedType == StockDocumentType.PurchaseReceipt)
+            {
+                <div class="col-md-8">
+                    <label class="form-label small fw-semibold">Nhà cung cấp <span class="text-danger">*</span></label>
+                    <select class="form-select" @bind="selectedSupplierId">
+                        <option value="0">-- Chọn nhà cung cấp hợp tác --</option>
+                        @if (suppliers != null)
+                        {
+                            @foreach (var s in suppliers.Where(x => x.IsCooperating))
+                            {
+                                <option value="@s.SupplierId">@s.SupplierName (@s.Phone)</option>
+                            }
+                        }
+                    </select>
+                </div>
+            }
+
+            <div class="col-12">
+                <label class="form-label small fw-semibold">Lý do lập phiếu kho <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" placeholder="Ví dụ: Nhập hàng đợt 1 tháng 11, Kiểm kê thừa/thiếu cuối tháng..." @bind="reason" />
+            </div>
+        </div>
+
+        <!-- 2. Add Variant to Document Box -->
+        <div class="p-3 bg-light rounded-3 border mb-4">
+            <h6 class="fw-bold text-dark mb-3">
+                <i class="bi bi-plus-circle me-1"></i> Thêm Biến Thể Vào Phiếu
+            </h6>
+            <div class="row g-2 align-items-end">
+                <div class="col-md-5">
+                    <label class="form-label small text-secondary">Chọn sản phẩm & biến thể giày</label>
+                    <select class="form-select form-select-sm" @bind="addItemVariantId">
+                        <option value="0">-- Chọn biến thể (SKU - Tên - Size - Màu) --</option>
+                        @if (allStockVariants != null)
+                        {
+                            @foreach (var v in allStockVariants)
+                            {
+                                <option value="@v.VariantId">@v.Sku - @v.ProductName (Size @v.Size - @v.Color) [Hiện có: @v.StockQuantity]</option>
+                            }
+                        }
+                    </select>
+                </div>
+
+                <div class="col-md-2 col-6">
+                    <label class="form-label small text-secondary">Số lượng</label>
+                    <input type="number" class="form-control form-control-sm" min="1" @bind="addItemQty" />
+                </div>
+
+                <div class="col-md-2 col-6">
+                    <label class="form-label small text-secondary">Giá vốn (₫)</label>
+                    <input type="number" class="form-control form-control-sm" placeholder="Giá vốn..." @bind="addItemCost" />
+                </div>
+
+                <div class="col-md-2">
+                    <label class="form-label small text-secondary">Ghi chú</label>
+                    <input type="text" class="form-control form-control-sm" placeholder="Ghi chú..." @bind="addItemNote" />
+                </div>
+
+                <div class="col-md-1">
+                    <button type="button" class="btn btn-dark btn-sm w-100" @onclick="AddItemToDoc">
+                        Thêm
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. Document Items Table -->
+        <h6 class="fw-bold text-dark mb-2">Danh Sách Biến Thể Trong Phiếu (@selectedItems.Count)</h6>
+        @if (!selectedItems.Any())
+        {
+            <div class="alert alert-secondary py-3 text-center small mb-4">
+                Chưa có biến thể nào được chọn. Vui lòng chọn biến thể ở trên và bấm "Thêm".
+            </div>
+        }
+        else
+        {
+            <div class="table-responsive border rounded-3 mb-4">
+                <table class="table align-middle small mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Mã SKU</th>
+                            <th>Tên Sản Phẩm</th>
+                            <th>Kích Cỡ</th>
+                            <th>Màu Sắc</th>
+                            <th class="text-center" style="width: 120px;">Số Lượng</th>
+                            <th class="text-end">Đơn Giá Vốn</th>
+                            <th>Ghi Chú</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in selectedItems)
+                        {
+                            var v = allStockVariants?.FirstOrDefault(x => x.VariantId == item.VariantId);
+                            <tr>
+                                <td class="font-monospace fw-bold text-primary">@(v?.Sku ?? item.VariantId.ToString())</td>
+                                <td class="fw-semibold">@(v?.ProductName ?? "-")</td>
+                                <td>Size @(v?.Size ?? "-")</td>
+                                <td>@(v?.Color ?? "-")</td>
+                                <td class="text-center">
+                                    <input type="number" class="form-control form-control-sm text-center" min="1" @bind="item.Quantity" style="width: 80px; margin: 0 auto;" />
+                                </td>
+                                <td class="text-end">
+                                    <input type="number" class="form-control form-control-sm text-end" @bind="item.UnitCost" style="width: 120px; margin-left: auto;" />
+                                </td>
+                                <td>
+                                    <input type="text" class="form-control form-control-sm" @bind="item.Note" placeholder="Ghi chú..." />
+                                </td>
+                                <td class="text-end">
+                                    <button type="button" class="btn btn-sm btn-link text-danger p-0" @onclick="() => RemoveItem(item)">
+                                        <i class="bi bi-trash fs-5"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+
+        <!-- Action Buttons -->
+        <div class="border-top pt-4 d-flex flex-wrap justify-content-between align-items-center gap-3">
+            <a href="/admin/stock-documents" class="btn btn-outline-secondary rounded-pill px-4">
+                Hủy bỏ
+            </a>
+
+            <div class="d-flex gap-2">
+                <button type="button" class="btn btn-outline-dark rounded-pill px-4 fw-semibold" @onclick="() => SubmitDocument(false)" disabled="@isSubmitting">
+                    Lưu Bản Nháp (Draft)
+                </button>
+                <button type="button" class="btn btn-success rounded-pill px-4 fw-bold shadow-sm" @onclick="() => SubmitDocument(true)" disabled="@isSubmitting">
+                    <i class="bi bi-check2-circle me-1"></i> Xác Nhận & Cập Nhật Tồn Kho Ngay
+                </button>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private StockDocumentType selectedType = StockDocumentType.PurchaseReceipt;
+    private int selectedSupplierId = 0;
+    private string reason = "";
+
+    private List<Supplier>? suppliers;
+    private List<StockVariantView>? allStockVariants;
+
+    // Item to add
+    private int addItemVariantId = 0;
+    private int addItemQty = 10;
+    private decimal? addItemCost;
+    private string addItemNote = "";
+
+    // Items in doc
+    private List<CreateStockDocumentItemModel> selectedItems = new();
+
+    private bool isSubmitting = false;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        suppliers = await SupplierService.GetSuppliersAsync();
+        allStockVariants = await InventoryService.GetStockVariantsAsync();
+
+        if (suppliers.Any())
+        {
+            selectedSupplierId = suppliers.First().SupplierId;
+        }
+
+        reason = "Nhập hàng bổ sung từ nhà cung cấp";
+    }
+
+    private void AddItemToDoc()
+    {
+        errorMessage = null;
+
+        if (addItemVariantId <= 0)
+        {
+            errorMessage = "Vui lòng chọn một biến thể giày.";
+            return;
+        }
+
+        if (addItemQty <= 0)
+        {
+            errorMessage = "Số lượng phải lớn hơn 0.";
+            return;
+        }
+
+        var existing = selectedItems.FirstOrDefault(x => x.VariantId == addItemVariantId);
+        if (existing != null)
+        {
+            errorMessage = "Biến thể này đã có trong danh sách phiếu.";
+            return;
+        }
+
+        selectedItems.Add(new CreateStockDocumentItemModel(
+            addItemVariantId,
+            addItemQty,
+            addItemCost,
+            addItemNote
+        ));
+
+        // Reset inputs
+        addItemVariantId = 0;
+        addItemQty = 10;
+        addItemCost = null;
+        addItemNote = "";
+    }
+
+    private void RemoveItem(CreateStockDocumentItemModel item)
+    {
+        selectedItems.Remove(item);
+    }
+
+    private async Task SubmitDocument(bool confirmImmediately)
+    {
+        errorMessage = null;
+
+        if (string.IsNullOrWhiteSpace(reason))
+        {
+            errorMessage = "Vui lòng nhập lý do lập phiếu kho.";
+            return;
+        }
+
+        if (selectedType == StockDocumentType.PurchaseReceipt && selectedSupplierId <= 0)
+        {
+            errorMessage = "Phiếu nhập hàng yêu cầu phải chọn nhà cung cấp.";
+            return;
+        }
+
+        if (!selectedItems.Any())
+        {
+            errorMessage = "Phiếu kho phải có ít nhất một biến thể sản phẩm.";
+            return;
+        }
+
+        if (AuthService.CurrentUser == null) return;
+
+        isSubmitting = true;
+        var res = await InventoryService.CreateManualStockDocumentAsync(
+            createdByUserId: AuthService.CurrentUser.UserId,
+            type: selectedType,
+            supplierId: selectedType == StockDocumentType.PurchaseReceipt ? selectedSupplierId : null,
+            reason: reason,
+            items: selectedItems,
+            confirmImmediately: confirmImmediately
+        );
+        isSubmitting = false;
+
+        if (res.Success)
+        {
+            Navigation.NavigateTo("/admin/stock-documents");
+        }
+        else
+        {
+            errorMessage = res.Message;
+        }
+    }
+}
+

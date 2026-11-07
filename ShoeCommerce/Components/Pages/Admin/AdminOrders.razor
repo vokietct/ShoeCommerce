@@ -1,0 +1,265 @@
+@page "/admin/orders"
+@layout Layout.AdminLayout
+@inject IOrderService OrderService
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+
+<div class="mb-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+        <div>
+            <h4 class="fw-bold text-dark mb-1">
+                <i class="bi bi-bag-check me-2 text-primary"></i> Quản Lý & Xử Lý Đơn Hàng
+            </h4>
+            <p class="text-secondary small mb-0">Theo dõi, xác nhận, chuyển trạng thái và xử lý đơn hàng của khách hàng</p>
+        </div>
+    </div>
+</div>
+
+<!-- Filters Bar -->
+<div class="bg-white rounded-4 border p-3 mb-4 shadow-sm">
+    <div class="row g-2 align-items-center">
+        <div class="col-md-3">
+            <div class="input-group input-group-sm">
+                <span class="input-group-text bg-light text-secondary"><i class="bi bi-search"></i></span>
+                <input type="text" class="form-control" placeholder="Mã đơn, tên khách, SĐT..." @bind="searchTerm" @bind:event="oninput" @onkeydown="HandleKeyDown" />
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <select class="form-select form-select-sm" @bind="selectedStatus" @bind:after="ApplyFilter">
+                <option value="">-- Tất cả trạng thái đơn --</option>
+                <option value="Pending">Chờ xác nhận (Pending)</option>
+                <option value="Confirmed">Đã xác nhận (Confirmed)</option>
+                <option value="Shipping">Đang giao (Shipping)</option>
+                <option value="Completed">Hoàn tất (Completed)</option>
+                <option value="Cancelled">Đã hủy (Cancelled)</option>
+            </select>
+        </div>
+
+        <div class="col-md-2">
+            <input type="date" class="form-control form-control-sm" title="Từ ngày" @bind="fromDate" @bind:after="ApplyFilter" />
+        </div>
+
+        <div class="col-md-2">
+            <input type="date" class="form-control form-control-sm" title="Đến ngày" @bind="toDate" @bind:after="ApplyFilter" />
+        </div>
+
+        <div class="col-md-2 d-flex gap-2">
+            <button class="btn btn-sm btn-dark w-100" @onclick="ApplyFilter">
+                Lọc Đơn
+            </button>
+            <button class="btn btn-sm btn-outline-secondary" @onclick="ResetFilter" title="Đặt lại">
+                <i class="bi bi-arrow-counterclockwise"></i>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Orders Table -->
+<div class="table-custom shadow-sm mb-4">
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="text-muted mt-2">Đang tải danh sách đơn hàng...</p>
+        </div>
+    }
+    else if (orders == null || !orders.Any())
+    {
+        <div class="text-center py-5 text-secondary">
+            <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+            Không có đơn hàng nào phù hợp với bộ lọc tìm kiếm.
+        </div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table align-middle">
+                <thead>
+                    <tr>
+                        <th>Mã Đơn</th>
+                        <th>Ngày Đặt</th>
+                        <th>Khách Hàng / Người Nhận</th>
+                        <th>Số ĐT</th>
+                        <th class="text-end">Tiền Hàng</th>
+                        <th class="text-end">Thanh Toán</th>
+                        <th>Hình Thức</th>
+                        <th>Trạng Thái Đơn</th>
+                        <th class="text-end" style="min-width: 120px;">Thao Tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var o in orders)
+                    {
+                        <tr>
+                            <td>
+                                <a href="/admin/orders/@o.OrderId" class="fw-bold font-monospace text-primary text-decoration-none">
+                                    @o.OrderCode
+                                </a>
+                                <div class="text-muted" style="font-size: 0.725rem;">@o.ItemCount sản phẩm</div>
+                            </td>
+                            <td class="small text-secondary">
+                                @o.CreatedAt.ToString("dd/MM/yyyy HH:mm")
+                            </td>
+                            <td>
+                                <div class="fw-semibold text-dark">@o.ReceiverName</div>
+                                @if (o.ReceiverName != o.CustomerName)
+                                {
+                                    <div class="text-muted" style="font-size: 0.725rem;">TK: @o.CustomerName</div>
+                                }
+                            </td>
+                            <td class="small font-monospace">@o.Phone</td>
+                            <td class="text-end small">
+                                @o.TotalAmount.ToString("N0") ₫
+                            </td>
+                            <td class="text-end fw-bold text-dark">
+                                @o.FinalAmount.ToString("N0") ₫
+                            </td>
+                            <td>
+                                <div>
+                                    <span class="badge @(o.PaymentMethod == PaymentMethod.COD ? "bg-light text-dark border" : "bg-info-subtle text-info border border-info-subtle")">
+                                        @o.PaymentMethod
+                                    </span>
+                                </div>
+                                <div class="mt-1">
+                                    @if (o.PaymentStatus == PaymentStatus.Paid)
+                                    {
+                                        <span class="badge bg-success-subtle text-success border border-success-subtle" style="font-size: 0.7rem;">Đã thanh toán</span>
+                                    }
+                                    else if (o.PaymentStatus == PaymentStatus.Cancelled)
+                                    {
+                                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle" style="font-size: 0.7rem;">Đã hủy</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-warning-subtle text-warning border border-warning-subtle" style="font-size: 0.7rem;">Chưa TT</span>
+                                    }
+                                </div>
+                            </td>
+                            <td>
+                                <span class="status-badge @(o.OrderStatus.ToString().ToLower())">
+                                    @(o.OrderStatus switch
+                                    {
+                                        OrderStatus.Pending => "Chờ xác nhận",
+                                        OrderStatus.Confirmed => "Đã xác nhận",
+                                        OrderStatus.Shipping => "Đang giao",
+                                        OrderStatus.Completed => "Hoàn tất",
+                                        OrderStatus.Cancelled => "Đã hủy",
+                                        _ => o.OrderStatus.ToString()
+                                    })
+                                </span>
+                            </td>
+                            <td class="text-end">
+                                <a href="/admin/orders/@o.OrderId" class="btn btn-sm btn-outline-dark rounded-pill px-3">
+                                    Chi tiết <i class="bi bi-chevron-right ms-1"></i>
+                                </a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        @if (totalPages > 1)
+        {
+            <div class="d-flex justify-content-between align-items-center p-3 border-top bg-light">
+                <span class="text-secondary small">
+                    Trang <strong>@currentPage</strong> / <strong>@totalPages</strong> (Tổng @totalCount đơn)
+                </span>
+                <ul class="pagination pagination-sm mb-0">
+                    <li class="page-item @(currentPage == 1 ? "disabled" : "")">
+                        <button class="page-link" @onclick="() => ChangePage(currentPage - 1)">Trước</button>
+                    </li>
+                    @for (int i = 1; i <= totalPages; i++)
+                    {
+                        var pageIdx = i;
+                        <li class="page-item @(pageIdx == currentPage ? "active" : "")">
+                            <button class="page-link" @onclick="() => ChangePage(pageIdx)">@pageIdx</button>
+                        </li>
+                    }
+                    <li class="page-item @(currentPage == totalPages ? "disabled" : "")">
+                        <button class="page-link" @onclick="() => ChangePage(currentPage + 1)">Sau</button>
+                    </li>
+                </ul>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "status")]
+    public string? QueryStatus { get; set; }
+
+    private List<OrderSummaryView>? orders;
+    private bool isLoading = true;
+
+    private string searchTerm = "";
+    private string selectedStatus = "";
+    private DateTime? fromDate;
+    private DateTime? toDate;
+
+    private int currentPage = 1;
+    private int pageSize = 10;
+    private int totalCount = 0;
+    private int totalPages => (int)Math.Ceiling(totalCount / (double)pageSize);
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!string.IsNullOrEmpty(QueryStatus))
+        {
+            selectedStatus = QueryStatus;
+        }
+        await LoadOrders();
+    }
+
+    private async Task LoadOrders()
+    {
+        isLoading = true;
+        OrderStatus? status = Enum.TryParse<OrderStatus>(selectedStatus, out var s) ? s : null;
+
+        var res = await OrderService.GetAdminOrdersAsync(
+            status: status,
+            searchCodeOrCustomer: searchTerm,
+            fromDate: fromDate,
+            toDate: toDate,
+            page: currentPage,
+            pageSize: pageSize
+        );
+
+        orders = res.Items;
+        totalCount = res.TotalCount;
+        isLoading = false;
+    }
+
+    private async Task ApplyFilter()
+    {
+        currentPage = 1;
+        await LoadOrders();
+    }
+
+    private async Task ResetFilter()
+    {
+        searchTerm = "";
+        selectedStatus = "";
+        fromDate = null;
+        toDate = null;
+        currentPage = 1;
+        await LoadOrders();
+    }
+
+    private async Task ChangePage(int p)
+    {
+        if (p < 1 || p > totalPages) return;
+        currentPage = p;
+        await LoadOrders();
+    }
+
+    private void HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            ApplyFilter();
+        }
+    }
+}
+

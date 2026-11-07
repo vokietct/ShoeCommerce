@@ -1,0 +1,242 @@
+@page "/admin/products/new"
+@page "/admin/products/{id:int}/edit"
+@layout Layout.AdminLayout
+@inject IProductService ProductService
+@inject ICategoryBrandService CategoryBrandService
+@inject ISupplierService SupplierService
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+
+<div class="mb-4" style="max-width: 900px;">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb small">
+            <li class="breadcrumb-item"><a href="/admin" class="text-decoration-none">Quản trị</a></li>
+            <li class="breadcrumb-item"><a href="/admin/products" class="text-decoration-none">Sản phẩm</a></li>
+            <li class="breadcrumb-item active" aria-current="page">@(IsNew ? "Thêm sản phẩm mới" : "Chỉnh sửa sản phẩm")</li>
+        </ol>
+    </nav>
+
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <h4 class="fw-bold text-dark mb-1">
+                <i class="bi bi-box-seam me-2"></i> @(IsNew ? "Thêm Sản Phẩm Mới (Màn hình 33)" : $"Chỉnh Sửa Sản Phẩm: {product.ProductName}")
+            </h4>
+            <p class="text-secondary small mb-0">Điền đầy đủ thông tin mã sản phẩm, thương hiệu, danh mục và nhà cung cấp</p>
+        </div>
+        <a href="/admin/products" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
+            <i class="bi bi-arrow-left me-1"></i> Quay lại
+        </a>
+    </div>
+</div>
+
+<div class="bg-white rounded-4 border p-4 p-md-5 shadow-sm mb-5" style="max-width: 900px;">
+    @if (!AuthService.IsAdmin)
+    {
+        <div class="alert alert-danger py-3 text-center">
+            <i class="bi bi-shield-x fs-3 d-block mb-2"></i>
+            Bạn không có quyền thực hiện thao tác này. Chức năng chỉ dành riêng cho Quản lý (Admin).
+        </div>
+    }
+    else if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="text-muted mt-2">Đang tải thông tin sản phẩm...</p>
+        </div>
+    }
+    else
+    {
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert alert-danger py-2 px-3 small rounded-3 mb-4">
+                <i class="bi bi-exclamation-triangle-fill me-1"></i> @errorMessage
+            </div>
+        }
+
+        <EditForm Model="product" OnValidSubmit="HandleSave">
+            <div class="row g-3 mb-4">
+                <div class="col-md-4">
+                    <label class="form-label small fw-semibold">Mã sản phẩm <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" placeholder="Ví dụ: AF1-07" @bind="product.ProductCode" required />
+                    <span class="text-muted" style="font-size: 0.725rem;">Mã duy nhất, không trùng lặp</span>
+                </div>
+
+                <div class="col-md-8">
+                    <label class="form-label small fw-semibold">Tên sản phẩm giày <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" placeholder="Ví dụ: Nike Air Force 1 '07 Low" @bind="product.ProductName" required />
+                </div>
+
+                <div class="col-md-4">
+                    <label class="form-label small fw-semibold">Danh mục giày <span class="text-danger">*</span></label>
+                    <select class="form-select" @bind="product.CategoryId" required>
+                        <option value="0">-- Chọn danh mục --</option>
+                        @if (categories != null)
+                        {
+                            @foreach (var c in categories)
+                            {
+                                <option value="@c.CategoryId">@c.CategoryName</option>
+                            }
+                        }
+                    </select>
+                </div>
+
+                <div class="col-md-4">
+                    <label class="form-label small fw-semibold">Thương hiệu <span class="text-danger">*</span></label>
+                    <select class="form-select" @bind="product.BrandId" required>
+                        <option value="0">-- Chọn thương hiệu --</option>
+                        @if (brands != null)
+                        {
+                            @foreach (var b in brands)
+                            {
+                                <option value="@b.BrandId">@b.BrandName</option>
+                            }
+                        }
+                    </select>
+                </div>
+
+                <div class="col-md-4">
+                    <label class="form-label small fw-semibold">Nhà cung cấp <span class="text-danger">*</span></label>
+                    <select class="form-select" @bind="product.SupplierId" required>
+                        <option value="0">-- Chọn nhà cung cấp --</option>
+                        @if (suppliers != null)
+                        {
+                            @foreach (var s in suppliers)
+                            {
+                                <option value="@s.SupplierId">@s.SupplierName</option>
+                            }
+                        }
+                    </select>
+                </div>
+
+                <div class="col-12">
+                    <label class="form-label small fw-semibold">Đường dẫn hình ảnh đại diện (Thumbnail URL)</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-light text-secondary"><i class="bi bi-image"></i></span>
+                        <input type="text" class="form-control" placeholder="/images/products/nike_air_force_1.png hoặc URL ảnh online" @bind="product.ThumbnailUrl" />
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(product.ThumbnailUrl))
+                    {
+                        <div class="mt-2 p-2 border rounded-3 bg-light d-inline-block">
+                            <span class="small text-secondary d-block mb-1">Xem trước ảnh:</span>
+                            <img src="@product.ThumbnailUrl" alt="Preview" style="max-height: 90px; object-fit: contain;" />
+                        </div>
+                    }
+                </div>
+
+                <div class="col-12">
+                    <label class="form-label small fw-semibold">Mô tả sản phẩm</label>
+                    <textarea class="form-control" rows="4" placeholder="Mô tả công nghệ đệm, chất liệu da, form dáng, tính năng nổi bật..." @bind="product.Description"></textarea>
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label small fw-semibold">Trạng thái kinh doanh</label>
+                    <select class="form-select" @bind="product.Status">
+                        <option value="@ProductStatus.Selling">Đang kinh doanh (Selling)</option>
+                        <option value="@ProductStatus.Discontinued">Ngừng kinh doanh (Discontinued)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="border-top pt-4 d-flex justify-content-end gap-3">
+                <a href="/admin/products" class="btn btn-outline-secondary rounded-pill px-4">Hủy bỏ</a>
+                <button type="submit" class="btn btn-dark rounded-pill px-5 fw-semibold" disabled="@isSubmitting">
+                    @if (isSubmitting)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2"></span>
+                    }
+                    @(IsNew ? "Tạo Sản Phẩm Mới" : "Cập Nhật Sản Phẩm")
+                </button>
+            </div>
+        </EditForm>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public int? Id { get; set; }
+
+    private bool IsNew => !Id.HasValue || Id.Value <= 0;
+
+    private Product product = new();
+    private List<Category>? categories;
+    private List<Brand>? brands;
+    private List<Supplier>? suppliers;
+
+    private bool isLoading = true;
+    private bool isSubmitting = false;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        isLoading = true;
+        categories = await CategoryBrandService.GetAllCategoriesAsync();
+        brands = await CategoryBrandService.GetAllBrandsAsync();
+        suppliers = await SupplierService.GetSuppliersAsync();
+
+        if (!IsNew)
+        {
+            var p = await ProductService.GetProductDetailAsync(Id!.Value, includeAllVariants: true);
+            if (p != null)
+            {
+                product = p;
+            }
+            else
+            {
+                errorMessage = "Không tìm thấy sản phẩm.";
+            }
+        }
+        else
+        {
+            product = new Product
+            {
+                Status = ProductStatus.Selling,
+                ThumbnailUrl = "/images/products/nike_air_force_1.png"
+            };
+        }
+
+        isLoading = false;
+    }
+
+    private async Task HandleSave()
+    {
+        errorMessage = null;
+
+        if (product.CategoryId <= 0 || product.BrandId <= 0 || product.SupplierId <= 0)
+        {
+            errorMessage = "Vui lòng chọn danh mục, thương hiệu và nhà cung cấp.";
+            return;
+        }
+
+        isSubmitting = true;
+
+        if (IsNew)
+        {
+            var res = await ProductService.CreateProductAsync(product);
+            isSubmitting = false;
+            if (res.Success && res.ProductId.HasValue)
+            {
+                // Sau khi tạo sản phẩm, chuyển đến trang quản lý biến thể để thêm size/màu/giá
+                Navigation.NavigateTo($"/admin/products/{res.ProductId.Value}/variants");
+            }
+            else
+            {
+                errorMessage = res.Message;
+            }
+        }
+        else
+        {
+            var res = await ProductService.UpdateProductAsync(product);
+            isSubmitting = false;
+            if (res.Success)
+            {
+                Navigation.NavigateTo("/admin/products");
+            }
+            else
+            {
+                errorMessage = res.Message;
+            }
+        }
+    }
+}
+

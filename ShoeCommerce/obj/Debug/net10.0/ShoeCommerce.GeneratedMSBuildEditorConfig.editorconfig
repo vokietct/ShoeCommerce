@@ -27,8 +27,112 @@ build_property.EnableCodeStyleSeverity =
 build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xBcHAucmF6b3I=
 build_metadata.AdditionalFiles.CssScope = 
 
+[C:/Users/KIET/Desktop/DoanCSharp/Doan/ShoeCommerce/ShoeCommerce/Components/Layout/AdminLayout.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xMYXlvdXRcQWRtaW5MYXlvdXQucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/KIET/Desktop/DoanCSharp/Doan/ShoeCommerce/ShoeCommerce/Components/Pages/Admin/AdminCategoriesBrands.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xBZG1pblxBZG1pbkNhdGVnb3JpZXNCcmFuZHMucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/KIET/Desktop/DoanCSharp/Doan/ShoeCommerce/ShoeCommerce/Components/Pages/Admin/AdminCustomers.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xBZG1pblxBZG1pbkN1c3RvbWVycy5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/KIET/Desktop/DoanCSharp/Doan/ShoeCommerce/ShoeCommerce/Components/Pages/Admin/AdminDashboard.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xBZG1pblxBZG1pbkRhc2hib2FyZC5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/KIET/Desktop/DoanCSharp/Doan/ShoeCommerce/ShoeCommerce/Components/Pages/Admin/AdminEmployees.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xBZG1pblxBZG1pbkVtcGxveWVlcy5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/KIET/Desktop/DoanCSharp/Doan/ShoeCommerce/ShoeCommerce/Components/Pages/Admin/AdminInventory.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xBZG1pblxBZG1pbkludmVudG9yeS5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/KIET/Desktop/DoanCSharp/Doan/ShoeCommerce/ShoeCommerce/Components/Pages/Admin/AdminLogin.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xBZG1pblxBZG1pbkxvZ2luLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/KIET/Desktop/DoanCSharp/Doan/ShoeCommerce/ShoeCommerce/Components/Pages/Admin/AdminOrderDetail.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xBZG1pblxBZG1pbk9yZGVyRGV0YWlsLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/KIET/Desktop/DoanCSharp/Doan/ShoeCommerce/ShoeCommerce/Components/Pages/Admin/AdminOrders.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xBZG1pblxBZG1pbk9yZGVycy5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/KIET/Desktop/DoanCSharp/Doan/ShoeCommerce/ShoeCommerce/Components/Pages/Admin/AdminPayments.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xBZG1pblxBZG1pblBheW1lbnRzLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/KIET/Desktop/DoanCSharp/Doan/ShoeCommerce/ShoeCommerce/Components/Pages/Admin/AdminProductEdit.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xBZG1pblxBZG1pblByb2R1Y3RFZGl0LnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/KIET/Desktop/DoanCSharp/Doan/ShoeCommerce/ShoeCommerce/Components/Pages/Admin/AdminProducts.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xBZG1pblxBZG1pblByb2R1Y3RzLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/KIET/Desktop/DoanCSharp/Doan/ShoeCommerce/ShoeCommerce/Components/Pages/Admin/AdminProductVariants.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xBZG1pblxBZG1pblByb2R1Y3RWYXJpYW50cy5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/KIET/Desktop/DoanCSharp/Doan/ShoeCommerce/ShoeCommerce/Components/Pages/Admin/AdminPromotions.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xBZG1pblxBZG1pblByb21vdGlvbnMucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/KIET/Desktop/DoanCSharp/Doan/ShoeCommerce/ShoeCommerce/Components/Pages/Admin/AdminReviews.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xBZG1pblxBZG1pblJldmlld3MucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/KIET/Desktop/DoanCSharp/Doan/ShoeCommerce/ShoeCommerce/Components/Pages/Admin/AdminStatistics.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xBZG1pblxBZG1pblN0YXRpc3RpY3MucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/KIET/Desktop/DoanCSharp/Doan/ShoeCommerce/ShoeCommerce/Components/Pages/Admin/AdminStockDocumentNew.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xBZG1pblxBZG1pblN0b2NrRG9jdW1lbnROZXcucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/KIET/Desktop/DoanCSharp/Doan/ShoeCommerce/ShoeCommerce/Components/Pages/Admin/AdminStockDocuments.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xBZG1pblxBZG1pblN0b2NrRG9jdW1lbnRzLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/KIET/Desktop/DoanCSharp/Doan/ShoeCommerce/ShoeCommerce/Components/Pages/Admin/AdminSuppliers.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xBZG1pblxBZG1pblN1cHBsaWVycy5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/KIET/Desktop/DoanCSharp/Doan/ShoeCommerce/ShoeCommerce/Components/Pages/CartPage.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xDYXJ0UGFnZS5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/KIET/Desktop/DoanCSharp/Doan/ShoeCommerce/ShoeCommerce/Components/Pages/CheckoutPage.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xDaGVja291dFBhZ2UucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
 [C:/Users/KIET/Desktop/DoanCSharp/Doan/ShoeCommerce/ShoeCommerce/Components/Pages/Counter.razor]
 build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xDb3VudGVyLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/KIET/Desktop/DoanCSharp/Doan/ShoeCommerce/ShoeCommerce/Components/Pages/CustomerAddresses.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xDdXN0b21lckFkZHJlc3Nlcy5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/KIET/Desktop/DoanCSharp/Doan/ShoeCommerce/ShoeCommerce/Components/Pages/CustomerOrderDetail.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xDdXN0b21lck9yZGVyRGV0YWlsLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/KIET/Desktop/DoanCSharp/Doan/ShoeCommerce/ShoeCommerce/Components/Pages/CustomerOrders.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xDdXN0b21lck9yZGVycy5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/KIET/Desktop/DoanCSharp/Doan/ShoeCommerce/ShoeCommerce/Components/Pages/CustomerProfile.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xDdXN0b21lclByb2ZpbGUucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/KIET/Desktop/DoanCSharp/Doan/ShoeCommerce/ShoeCommerce/Components/Pages/CustomerReviews.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xDdXN0b21lclJldmlld3MucmF6b3I=
 build_metadata.AdditionalFiles.CssScope = 
 
 [C:/Users/KIET/Desktop/DoanCSharp/Doan/ShoeCommerce/ShoeCommerce/Components/Pages/Error.razor]
@@ -39,8 +143,28 @@ build_metadata.AdditionalFiles.CssScope =
 build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xIb21lLnJhem9y
 build_metadata.AdditionalFiles.CssScope = 
 
+[C:/Users/KIET/Desktop/DoanCSharp/Doan/ShoeCommerce/ShoeCommerce/Components/Pages/Login.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xMb2dpbi5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
 [C:/Users/KIET/Desktop/DoanCSharp/Doan/ShoeCommerce/ShoeCommerce/Components/Pages/NotFound.razor]
 build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xOb3RGb3VuZC5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/KIET/Desktop/DoanCSharp/Doan/ShoeCommerce/ShoeCommerce/Components/Pages/OrderSuccess.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xPcmRlclN1Y2Nlc3MucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/KIET/Desktop/DoanCSharp/Doan/ShoeCommerce/ShoeCommerce/Components/Pages/ProductDetail.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xQcm9kdWN0RGV0YWlsLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/KIET/Desktop/DoanCSharp/Doan/ShoeCommerce/ShoeCommerce/Components/Pages/Products.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xQcm9kdWN0cy5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/KIET/Desktop/DoanCSharp/Doan/ShoeCommerce/ShoeCommerce/Components/Pages/Register.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xSZWdpc3Rlci5yYXpvcg==
 build_metadata.AdditionalFiles.CssScope = 
 
 [C:/Users/KIET/Desktop/DoanCSharp/Doan/ShoeCommerce/ShoeCommerce/Components/Pages/Weather.razor]

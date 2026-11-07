@@ -1,0 +1,187 @@
+@page "/profile"
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+
+<div class="container py-4" style="max-width: 800px;">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb small">
+            <li class="breadcrumb-item"><a href="/" class="text-decoration-none">Trang chủ</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Tài khoản của tôi</li>
+        </ol>
+    </nav>
+
+    <h3 class="fw-bold text-dark mb-4">
+        <i class="bi bi-person-gear me-2"></i> Tài Khoản Của Tôi
+    </h3>
+
+    @if (!AuthService.IsAuthenticated || !AuthService.IsCustomer)
+    {
+        <div class="bg-white rounded-4 border p-5 text-center my-4">
+            <i class="bi bi-person-lock fs-1 text-secondary mb-3 d-block"></i>
+            <h5 class="fw-bold">Vui lòng đăng nhập</h5>
+            <a href="/login" class="btn btn-dark rounded-pill px-4 mt-2">Đăng Nhập</a>
+        </div>
+    }
+    else
+    {
+        <div class="row g-4">
+            <!-- Personal Information Form -->
+            <div class="col-md-7">
+                <div class="bg-white rounded-4 border p-4 shadow-sm mb-4">
+                    <h5 class="fw-bold text-dark mb-3">Thông Tin Cá Nhân</h5>
+
+                    @if (!string.IsNullOrEmpty(profileMessage))
+                    {
+                        <div class="alert @(profileSuccess ? "alert-success" : "alert-danger") alert-dismissible fade show rounded-3 small mb-3">
+                            @profileMessage
+                            <button type="button" class="btn-close" @onclick="() => profileMessage = null"></button>
+                        </div>
+                    }
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold text-secondary">Địa chỉ Email (Tài khoản)</label>
+                        <input type="text" class="form-control bg-light" value="@AuthService.CurrentUser?.Email" disabled />
+                        <span class="text-muted" style="font-size: 0.725rem;">Email đăng nhập không thể thay đổi</span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold text-secondary">Họ và tên <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" @bind="fullName" />
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label small fw-semibold text-secondary">Số điện thoại <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" @bind="phone" />
+                    </div>
+
+                    <button class="btn btn-dark btn-sm rounded-pill px-4 fw-semibold" @onclick="SaveProfile" disabled="@isSavingProfile">
+                        @if (isSavingProfile)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                        }
+                        Lưu Thay Đổi
+                    </button>
+                </div>
+            </div>
+
+            <!-- Change Password Form -->
+            <div class="col-md-5">
+                <div class="bg-white rounded-4 border p-4 shadow-sm mb-4">
+                    <h5 class="fw-bold text-dark mb-3">Đổi Mật Khẩu</h5>
+
+                    @if (!string.IsNullOrEmpty(passwordMessage))
+                    {
+                        <div class="alert @(passwordSuccess ? "alert-success" : "alert-danger") alert-dismissible fade show rounded-3 small mb-3">
+                            @passwordMessage
+                            <button type="button" class="btn-close" @onclick="() => passwordMessage = null"></button>
+                        </div>
+                    }
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold text-secondary">Mật khẩu hiện tại</label>
+                        <input type="password" class="form-control" @bind="oldPassword" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold text-secondary">Mật khẩu mới (ít nhất 6 ký tự)</label>
+                        <input type="password" class="form-control" @bind="newPassword" />
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label small fw-semibold text-secondary">Xác nhận mật khẩu mới</label>
+                        <input type="password" class="form-control" @bind="confirmPassword" />
+                    </div>
+
+                    <button class="btn btn-outline-dark btn-sm rounded-pill px-4 fw-semibold w-100" @onclick="ChangePassword" disabled="@isChangingPassword">
+                        @if (isChangingPassword)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                        }
+                        Cập Nhật Mật Khẩu
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private string fullName = "";
+    private string phone = "";
+    private string? profileMessage;
+    private bool profileSuccess = true;
+    private bool isSavingProfile = false;
+
+    private string oldPassword = "";
+    private string newPassword = "";
+    private string confirmPassword = "";
+    private string? passwordMessage;
+    private bool passwordSuccess = true;
+    private bool isChangingPassword = false;
+
+    protected override void OnInitialized()
+    {
+        if (AuthService.CurrentUser != null)
+        {
+            fullName = AuthService.CurrentUser.FullName;
+            phone = AuthService.CurrentUser.Phone;
+        }
+    }
+
+    private async Task SaveProfile()
+    {
+        if (string.IsNullOrWhiteSpace(fullName) || string.IsNullOrWhiteSpace(phone))
+        {
+            profileSuccess = false;
+            profileMessage = "Họ tên và số điện thoại không được để trống.";
+            return;
+        }
+
+        isSavingProfile = true;
+        var res = await AuthService.UpdateProfileAsync(fullName, phone);
+        isSavingProfile = false;
+
+        profileSuccess = res.Success;
+        profileMessage = res.Message;
+    }
+
+    private async Task ChangePassword()
+    {
+        if (string.IsNullOrWhiteSpace(oldPassword) || string.IsNullOrWhiteSpace(newPassword))
+        {
+            passwordSuccess = false;
+            passwordMessage = "Vui lòng nhập mật khẩu hiện tại và mật khẩu mới.";
+            return;
+        }
+
+        if (newPassword.Length < 6)
+        {
+            passwordSuccess = false;
+            passwordMessage = "Mật khẩu mới phải có tối thiểu 6 ký tự.";
+            return;
+        }
+
+        if (newPassword != confirmPassword)
+        {
+            passwordSuccess = false;
+            passwordMessage = "Xác nhận mật khẩu mới không trùng khớp.";
+            return;
+        }
+
+        isChangingPassword = true;
+        var res = await AuthService.ChangePasswordAsync(oldPassword, newPassword);
+        isChangingPassword = false;
+
+        passwordSuccess = res.Success;
+        passwordMessage = res.Message;
+
+        if (res.Success)
+        {
+            oldPassword = "";
+            newPassword = "";
+            confirmPassword = "";
+        }
+    }
+}
+

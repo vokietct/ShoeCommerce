@@ -1,0 +1,342 @@
+@page "/admin/categories-brands"
+@layout Layout.AdminLayout
+@inject ICategoryBrandService CategoryBrandService
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+
+<div class="mb-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+        <div>
+            <h4 class="fw-bold text-dark mb-1">
+                <i class="bi bi-tags me-2 text-primary"></i> Quản Lý Danh Mục & Thương Hiệu
+            </h4>
+            <p class="text-secondary small mb-0">Quản lý phân loại sản phẩm giày theo phong cách và thương hiệu sản xuất</p>
+        </div>
+
+        @if (AuthService.IsAdmin)
+        {
+            <div class="d-flex gap-2">
+                @if (activeTab == "categories")
+                {
+                    <button class="btn btn-dark btn-sm rounded-pill px-3 shadow-sm" @onclick="OpenAddCategoryModal">
+                        <i class="bi bi-plus-lg me-1"></i> Thêm Danh Mục
+                    </button>
+                }
+                else
+                {
+                    <button class="btn btn-dark btn-sm rounded-pill px-3 shadow-sm" @onclick="OpenAddBrandModal">
+                        <i class="bi bi-plus-lg me-1"></i> Thêm Thương Hiệu
+                    </button>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+@if (!string.IsNullOrEmpty(alertMessage))
+{
+    <div class="alert @(alertSuccess ? "alert-success" : "alert-warning") alert-dismissible fade show rounded-3 small mb-4" role="alert">
+        @alertMessage
+        <button type="button" class="btn-close" @onclick="() => alertMessage = null"></button>
+    </div>
+}
+
+<!-- Tab Navigation -->
+<ul class="nav nav-pills mb-4" role="tablist">
+    <li class="nav-item">
+        <button class="nav-link rounded-pill @(activeTab == "categories" ? "active bg-dark" : "text-dark")" @onclick="SetTabCategories">
+            <i class="bi bi-tag me-1"></i> Danh Mục Giày (@(categories?.Count ?? 0))
+        </button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link rounded-pill @(activeTab == "brands" ? "active bg-dark" : "text-dark")" @onclick="SetTabBrands">
+            <i class="bi bi-award me-1"></i> Thương Hiệu Giày (@(brands?.Count ?? 0))
+        </button>
+    </li>
+</ul>
+
+@if (isLoading)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border text-primary" role="status"></div>
+        <p class="text-muted mt-2">Đang tải dữ liệu...</p>
+    </div>
+}
+else if (activeTab == "categories")
+{
+    <div class="table-custom shadow-sm mb-4">
+        <div class="table-responsive">
+            <table class="table align-middle">
+                <thead>
+                    <tr>
+                        <th style="width: 80px;">ID</th>
+                        <th>Tên Danh Mục</th>
+                        <th>Mô Tả</th>
+                        <th class="text-center">Số Sản Phẩm</th>
+                        <th class="text-end" style="width: 140px;">Thao Tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (categories != null)
+                    {
+                        @foreach (var c in categories)
+                        {
+                            <tr>
+                                <td class="text-muted">#@c.CategoryId</td>
+                                <td class="fw-bold text-dark">@c.CategoryName</td>
+                                <td class="text-secondary small">@(string.IsNullOrWhiteSpace(c.Description) ? "-" : c.Description)</td>
+                                <td class="text-center">
+                                    <span class="badge bg-light text-primary border">@c.Products.Count SP</span>
+                                </td>
+                                <td class="text-end">
+                                    @if (AuthService.IsAdmin)
+                                    {
+                                        <div class="btn-group btn-group-sm">
+                                            <button class="btn btn-outline-secondary" @onclick="() => OpenEditCategoryModal(c)">
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
+                                            <button class="btn btn-outline-danger" @onclick="() => DeleteCategory(c.CategoryId)">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+else
+{
+    <div class="table-custom shadow-sm mb-4">
+        <div class="table-responsive">
+            <table class="table align-middle">
+                <thead>
+                    <tr>
+                        <th style="width: 80px;">ID</th>
+                        <th>Tên Thương Hiệu</th>
+                        <th>Mô Tả</th>
+                        <th class="text-center">Số Sản Phẩm</th>
+                        <th class="text-end" style="width: 140px;">Thao Tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (brands != null)
+                    {
+                        @foreach (var b in brands)
+                        {
+                            <tr>
+                                <td class="text-muted">#@b.BrandId</td>
+                                <td class="fw-bold text-dark">@b.BrandName</td>
+                                <td class="text-secondary small">@(string.IsNullOrWhiteSpace(b.Description) ? "-" : b.Description)</td>
+                                <td class="text-center">
+                                    <span class="badge bg-light text-primary border">@b.Products.Count SP</span>
+                                </td>
+                                <td class="text-end">
+                                    @if (AuthService.IsAdmin)
+                                    {
+                                        <div class="btn-group btn-group-sm">
+                                            <button class="btn btn-outline-secondary" @onclick="() => OpenEditBrandModal(b)">
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
+                                            <button class="btn btn-outline-danger" @onclick="() => DeleteBrand(b.BrandId)">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+<!-- Category Modal -->
+@if (showCategoryModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content rounded-4 border-0">
+                <div class="modal-header border-bottom">
+                    <h5 class="modal-title fw-bold">@(isEditing ? "Chỉnh Sửa Danh Mục" : "Thêm Danh Mục Mới")</h5>
+                    <button type="button" class="btn-close" @onclick="() => showCategoryModal = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Tên danh mục <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" placeholder="Ví dụ: Giày thể thao, Sandal..." @bind="formName" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Mô tả ngắn</label>
+                        <textarea class="form-control" rows="3" placeholder="Mô tả phong cách, đối tượng..." @bind="formDesc"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer border-top">
+                    <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill px-3" @onclick="() => showCategoryModal = false">Hủy</button>
+                    <button type="button" class="btn btn-dark btn-sm rounded-pill px-4" @onclick="SaveCategory">Lưu Danh Mục</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Brand Modal -->
+@if (showBrandModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content rounded-4 border-0">
+                <div class="modal-header border-bottom">
+                    <h5 class="modal-title fw-bold">@(isEditing ? "Chỉnh Sửa Thương Hiệu" : "Thêm Thương Hiệu Mới")</h5>
+                    <button type="button" class="btn-close" @onclick="() => showBrandModal = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Tên thương hiệu <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" placeholder="Ví dụ: Nike, Adidas, Puma..." @bind="formName" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Mô tả thương hiệu</label>
+                        <textarea class="form-control" rows="3" placeholder="Giới thiệu về xuất xứ, khẩu hiệu..." @bind="formDesc"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer border-top">
+                    <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill px-3" @onclick="() => showBrandModal = false">Hủy</button>
+                    <button type="button" class="btn btn-dark btn-sm rounded-pill px-4" @onclick="SaveBrand">Lưu Thương Hiệu</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private string activeTab = "categories";
+    private List<Category>? categories;
+    private List<Brand>? brands;
+    private bool isLoading = true;
+
+    private string? alertMessage;
+    private bool alertSuccess = true;
+
+    private bool showCategoryModal = false;
+    private bool showBrandModal = false;
+    private bool isEditing = false;
+    private int currentEditId = 0;
+
+    private string formName = "";
+    private string formDesc = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        isLoading = true;
+        categories = await CategoryBrandService.GetAllCategoriesAsync();
+        brands = await CategoryBrandService.GetAllBrandsAsync();
+        isLoading = false;
+    }
+
+    private void OpenAddCategoryModal()
+    {
+        isEditing = false;
+        currentEditId = 0;
+        formName = "";
+        formDesc = "";
+        showCategoryModal = true;
+    }
+
+    private void OpenEditCategoryModal(Category c)
+    {
+        isEditing = true;
+        currentEditId = c.CategoryId;
+        formName = c.CategoryName;
+        formDesc = c.Description ?? "";
+        showCategoryModal = true;
+    }
+
+    private async Task SaveCategory()
+    {
+        if (isEditing)
+        {
+            var res = await CategoryBrandService.UpdateCategoryAsync(currentEditId, formName, formDesc);
+            alertSuccess = res.Success;
+            alertMessage = res.Message;
+        }
+        else
+        {
+            var res = await CategoryBrandService.CreateCategoryAsync(formName, formDesc);
+            alertSuccess = res.Success;
+            alertMessage = res.Message;
+        }
+
+        showCategoryModal = false;
+        await LoadData();
+    }
+
+    private async Task DeleteCategory(int id)
+    {
+        var res = await CategoryBrandService.DeleteCategoryAsync(id);
+        alertSuccess = res.Success;
+        alertMessage = res.Message;
+        await LoadData();
+    }
+
+    private void OpenAddBrandModal()
+    {
+        isEditing = false;
+        currentEditId = 0;
+        formName = "";
+        formDesc = "";
+        showBrandModal = true;
+    }
+
+    private void SetTabCategories() => activeTab = "categories";
+    private void SetTabBrands() => activeTab = "brands";
+
+    private void OpenEditBrandModal(Brand b)
+    {
+        isEditing = true;
+        currentEditId = b.BrandId;
+        formName = b.BrandName;
+        formDesc = b.Description ?? "";
+        showBrandModal = true;
+    }
+
+    private async Task SaveBrand()
+    {
+        if (isEditing)
+        {
+            var res = await CategoryBrandService.UpdateBrandAsync(currentEditId, formName, formDesc);
+            alertSuccess = res.Success;
+            alertMessage = res.Message;
+        }
+        else
+        {
+            var res = await CategoryBrandService.CreateBrandAsync(formName, formDesc);
+            alertSuccess = res.Success;
+            alertMessage = res.Message;
+        }
+
+        showBrandModal = false;
+        await LoadData();
+    }
+
+    private async Task DeleteBrand(int id)
+    {
+        var res = await CategoryBrandService.DeleteBrandAsync(id);
+        alertSuccess = res.Success;
+        alertMessage = res.Message;
+        await LoadData();
+    }
+}
+
+

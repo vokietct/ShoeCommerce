@@ -1,0 +1,392 @@
+@page "/admin/customers"
+@layout Layout.AdminLayout
+@inject IUserService UserService
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+
+<div class="mb-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+        <div>
+            <h4 class="fw-bold text-dark mb-1">
+                <i class="bi bi-people me-2 text-primary"></i> @(AuthService.IsAdmin ? "Quản Lý Khách Hàng (Màn hình 26)" : "Tra Cứu Khách Hàng (Màn hình 39)")
+            </h4>
+            <p class="text-secondary small mb-0">
+                @(AuthService.IsAdmin ? "Danh sách khách hàng, thông tin cá nhân, sổ địa chỉ và lịch sử đặt hàng" : "Không gian nhân viên · Chỉ xem thông tin tra cứu, không có thao tác sửa, khóa hoặc xóa khách hàng.")
+            </p>
+        </div>
+
+        @if (AuthService.IsAdmin)
+        {
+            <button class="btn btn-dark btn-sm rounded-pill px-3 shadow-sm" @onclick="OpenAddModal">
+                <i class="bi bi-person-plus me-1"></i> Thêm Khách Hàng Mới
+            </button>
+        }
+    </div>
+</div>
+
+@if (!string.IsNullOrEmpty(alertMessage))
+{
+    <div class="alert @(alertSuccess ? "alert-success" : "alert-warning") alert-dismissible fade show rounded-3 small mb-4" role="alert">
+        @alertMessage
+        <button type="button" class="btn-close" @onclick="() => alertMessage = null"></button>
+    </div>
+}
+
+<!-- Search Bar -->
+<div class="bg-white rounded-4 border p-3 mb-4 shadow-sm" style="max-width: 480px;">
+    <div class="input-group input-group-sm">
+        <span class="input-group-text bg-light text-secondary"><i class="bi bi-search"></i></span>
+        <input type="text" class="form-control" placeholder="Tìm theo họ tên, email, số điện thoại..." @bind="searchTerm" @bind:event="oninput" @onkeydown="HandleKeyDown" />
+        <button class="btn btn-dark" @onclick="LoadCustomers">Tìm</button>
+    </div>
+</div>
+
+<!-- Customers Table -->
+<div class="table-custom shadow-sm mb-4">
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="text-muted mt-2">Đang tải khách hàng...</p>
+        </div>
+    }
+    else if (customers == null || !customers.Any())
+    {
+        <div class="text-center py-5 text-secondary">
+            Không tìm thấy khách hàng nào.
+        </div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table align-middle">
+                <thead>
+                    <tr>
+                        <th style="width: 70px;">ID</th>
+                        <th>Họ và Tên</th>
+                        <th>Email Đăng Nhập</th>
+                        <th>Số Điện Thoại</th>
+                        <th class="text-center">Số Đơn Hàng</th>
+                        <th>Ngày Tham Gia</th>
+                        <th>Trạng Thái</th>
+                        <th class="text-end" style="min-width: 140px;">Thao Tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var u in customers)
+                    {
+                        var orderCount = u.Customer?.Orders.Count ?? 0;
+                        <tr>
+                            <td class="text-muted">#@u.UserId</td>
+                            <td class="fw-bold text-dark">
+                                <i class="bi bi-person-circle me-1 text-secondary"></i> @u.FullName
+                            </td>
+                            <td class="small">@u.Email</td>
+                            <td class="small font-monospace">@u.Phone</td>
+                            <td class="text-center">
+                                <span class="badge bg-light text-primary border">@orderCount đơn</span>
+                            </td>
+                            <td class="small text-secondary">@u.CreatedAt.ToString("dd/MM/yyyy")</td>
+                            <td>
+                                @if (u.IsActive)
+                                {
+                                    <span class="status-badge completed">Hoạt động</span>
+                                }
+                                else
+                                {
+                                    <span class="status-badge cancelled">Đang khóa</span>
+                                }
+                            </td>
+                            <td class="text-end">
+                                <div class="btn-group btn-group-sm">
+                                    <button class="btn btn-outline-info" title="Xem chi tiết, địa chỉ & đơn hàng" @onclick="() => ViewDetail(u.UserId)">
+                                        <i class="bi bi-eye"></i> Chi tiết
+                                    </button>
+                                    @if (AuthService.IsAdmin)
+                                    {
+                                        <button class="btn btn-outline-secondary" title="Sửa thông tin" @onclick="() => OpenEditModal(u)">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <button class="btn btn-outline-warning" title="Khóa / Mở khóa tài khoản" @onclick="() => ToggleLock(u.UserId)">
+                                            <i class="bi @(u.IsActive ? "bi-lock" : "bi-unlock")"></i>
+                                        </button>
+                                        <button class="btn btn-outline-danger" title="Xóa tài khoản" @onclick="() => DeleteCustomer(u.UserId)">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+<!-- Modal 27: Chi Tiết Khách Hàng (Sổ Địa Chỉ & Lịch Sử Đơn Hàng) -->
+@if (showDetailModal && detailCustomer != null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-dialog-centered modal-xl">
+            <div class="modal-content rounded-4 border-0">
+                <div class="modal-header border-bottom">
+                    <h5 class="modal-title fw-bold">
+                        Hồ Sơ Khách Hàng: @detailCustomer.Customer.User?.FullName
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="() => showDetailModal = false"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <!-- Profile info card -->
+                    <div class="row g-3 mb-4 bg-light p-3 rounded-3 small">
+                        <div class="col-md-3">
+                            <span class="text-secondary d-block">Họ và tên:</span>
+                            <strong class="fs-6 text-dark">@detailCustomer.Customer.User?.FullName</strong>
+                        </div>
+                        <div class="col-md-3">
+                            <span class="text-secondary d-block">Email:</span>
+                            <strong class="text-dark">@detailCustomer.Customer.User?.Email</strong>
+                        </div>
+                        <div class="col-md-3">
+                            <span class="text-secondary d-block">Số điện thoại:</span>
+                            <strong class="text-dark">@detailCustomer.Customer.User?.Phone</strong>
+                        </div>
+                        <div class="col-md-3">
+                            <span class="text-secondary d-block">Trạng thái tài khoản:</span>
+                            <span class="badge @(detailCustomer.Customer.User?.IsActive == true ? "bg-success" : "bg-danger")">
+                                @(detailCustomer.Customer.User?.IsActive == true ? "Đang hoạt động" : "Bị khóa")
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="row g-4">
+                        <!-- Addresses List -->
+                        <div class="col-lg-5">
+                            <h6 class="fw-bold text-dark mb-3">
+                                <i class="bi bi-geo-alt me-1 text-danger"></i> Sổ Địa Chỉ Giao Hàng (@detailCustomer.Addresses.Count)
+                            </h6>
+                            @if (!detailCustomer.Addresses.Any())
+                            {
+                                <p class="text-secondary small">Khách hàng chưa lưu địa chỉ nào.</p>
+                            }
+                            else
+                            {
+                                <div class="d-flex flex-column gap-2" style="max-height: 280px; overflow-y: auto;">
+                                    @foreach (var a in detailCustomer.Addresses)
+                                    {
+                                        <div class="p-3 border rounded-3 bg-white small">
+                                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                                <strong>@a.ReceiverName</strong>
+                                                @if (a.IsDefault)
+                                                {
+                                                    <span class="badge bg-success-subtle text-success border border-success-subtle" style="font-size: 0.7rem;">Mặc định</span>
+                                                }
+                                            </div>
+                                            <div class="text-secondary">SĐT: @a.Phone</div>
+                                            <div class="text-dark mt-1">@a.AddressLine</div>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </div>
+
+                        <!-- Orders History -->
+                        <div class="col-lg-7">
+                            <h6 class="fw-bold text-dark mb-3">
+                                <i class="bi bi-receipt me-1 text-primary"></i> Lịch Sử Đơn Hàng (@detailCustomer.Orders.Count)
+                            </h6>
+                            @if (!detailCustomer.Orders.Any())
+                            {
+                                <p class="text-secondary small">Khách hàng chưa phát sinh đơn hàng nào.</p>
+                            }
+                            else
+                            {
+                                <div class="table-responsive border rounded-3" style="max-height: 280px; overflow-y: auto;">
+                                    <table class="table table-sm align-middle small mb-0">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>Mã Đơn</th>
+                                                <th>Ngày Đặt</th>
+                                                <th>Tiền Hàng</th>
+                                                <th>Hình Thức</th>
+                                                <th>Trạng Thái</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var o in detailCustomer.Orders)
+                                            {
+                                                <tr>
+                                                    <td class="font-monospace fw-bold">
+                                                        <a href="/admin/orders/@o.OrderId" class="text-primary text-decoration-none">
+                                                            @o.OrderCode
+                                                        </a>
+                                                    </td>
+                                                    <td class="text-secondary">@o.CreatedAt.ToString("dd/MM/yyyy")</td>
+                                                    <td class="fw-bold">@((o.TotalAmount - o.DiscountAmount).ToString("N0")) ₫</td>
+                                                    <td>@o.Payment?.PaymentMethod</td>
+                                                    <td>
+                                                        <span class="badge @(o.OrderStatus == OrderStatus.Completed ? "bg-success" : (o.OrderStatus == OrderStatus.Cancelled ? "bg-danger" : "bg-warning text-dark"))">
+                                                            @o.OrderStatus
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-top">
+                    <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill px-4" @onclick="() => showDetailModal = false">Đóng</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Modal Thêm / Sửa Khách Hàng -->
+@if (showModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content rounded-4 border-0">
+                <div class="modal-header border-bottom">
+                    <h5 class="modal-title fw-bold">@(isEditing ? "Chỉnh Sửa Thông Tin Khách Hàng" : "Thêm Khách Hàng Mới")</h5>
+                    <button type="button" class="btn-close" @onclick="() => showModal = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Họ và tên <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" placeholder="Nguyễn Văn A" @bind="formFullName" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Địa chỉ Email <span class="text-danger">*</span></label>
+                        <input type="email" class="form-control" placeholder="email@example.com" @bind="formEmail" disabled="@isEditing" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Số điện thoại <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" placeholder="0901234567" @bind="formPhone" />
+                    </div>
+                    @if (!isEditing)
+                    {
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">Mật khẩu đăng nhập <span class="text-danger">*</span></label>
+                            <input type="password" class="form-control" placeholder="Tối thiểu 6 ký tự" @bind="formPassword" />
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer border-top">
+                    <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill px-3" @onclick="() => showModal = false">Hủy</button>
+                    <button type="button" class="btn btn-dark btn-sm rounded-pill px-4" @onclick="SaveCustomer">Lưu Khách Hàng</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<User>? customers;
+    private bool isLoading = true;
+    private string searchTerm = "";
+
+    private string? alertMessage;
+    private bool alertSuccess = true;
+
+    private bool showDetailModal = false;
+    private CustomerDetailDto? detailCustomer;
+
+    private bool showModal = false;
+    private bool isEditing = false;
+    private int currentEditId = 0;
+
+    private string formFullName = "";
+    private string formEmail = "";
+    private string formPhone = "";
+    private string formPassword = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCustomers();
+    }
+
+    private async Task LoadCustomers()
+    {
+        isLoading = true;
+        customers = await UserService.GetCustomersAsync(searchTerm);
+        isLoading = false;
+    }
+
+    private void HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            LoadCustomers();
+        }
+    }
+
+    private async Task ViewDetail(int customerId)
+    {
+        detailCustomer = await UserService.GetCustomerDetailAsync(customerId);
+        showDetailModal = true;
+    }
+
+    private void OpenAddModal()
+    {
+        isEditing = false;
+        currentEditId = 0;
+        formFullName = "";
+        formEmail = "";
+        formPhone = "";
+        formPassword = "";
+        showModal = true;
+    }
+
+    private void OpenEditModal(User u)
+    {
+        isEditing = true;
+        currentEditId = u.UserId;
+        formFullName = u.FullName;
+        formEmail = u.Email;
+        formPhone = u.Phone;
+        formPassword = "";
+        showModal = true;
+    }
+
+    private async Task SaveCustomer()
+    {
+        if (isEditing)
+        {
+            var res = await UserService.UpdateCustomerByAdminAsync(currentEditId, formFullName, formPhone);
+            alertSuccess = res.Success;
+            alertMessage = res.Message;
+        }
+        else
+        {
+            var res = await UserService.CreateCustomerByAdminAsync(formFullName, formEmail, formPhone, formPassword);
+            alertSuccess = res.Success;
+            alertMessage = res.Message;
+        }
+
+        showModal = false;
+        await LoadCustomers();
+    }
+
+    private async Task ToggleLock(int userId)
+    {
+        var res = await UserService.ToggleUserActiveAsync(userId);
+        alertSuccess = res.Success;
+        alertMessage = res.Message;
+        await LoadCustomers();
+    }
+
+    private async Task DeleteCustomer(int customerId)
+    {
+        var res = await UserService.DeleteCustomerAsync(customerId);
+        alertSuccess = res.Success;
+        alertMessage = res.Message;
+        await LoadCustomers();
+    }
+}
+

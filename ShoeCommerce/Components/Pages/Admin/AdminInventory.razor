@@ -1,0 +1,209 @@
+@page "/admin/inventory"
+@layout Layout.AdminLayout
+@inject IInventoryService InventoryService
+@inject ICategoryBrandService CategoryBrandService
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+
+<div class="mb-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+        <div>
+            <h4 class="fw-bold text-dark mb-1">
+                <i class="bi bi-archive me-2 text-primary"></i> Tra Cứu Tồn Kho Chung
+            </h4>
+            <p class="text-secondary small mb-0">Theo dõi số lượng tồn thực tế của từng SKU, kích cỡ và màu sắc trong kho duy nhất của ShoeStore</p>
+        </div>
+
+        @if (AuthService.IsAdmin)
+        {
+            <div class="d-flex gap-2">
+                <a href="/admin/stock-documents" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
+                    <i class="bi bi-file-earmark-text me-1"></i> Xem Phiếu Kho
+                </a>
+                <a href="/admin/stock-documents/new" class="btn btn-dark btn-sm rounded-pill px-3 shadow-sm">
+                    <i class="bi bi-plus-lg me-1"></i> Lập Phiếu Kho Mới
+                </a>
+            </div>
+        }
+    </div>
+</div>
+
+<!-- Filters Bar -->
+<div class="bg-white rounded-4 border p-3 mb-4 shadow-sm">
+    <div class="row g-2 align-items-center">
+        <div class="col-md-4">
+            <div class="input-group input-group-sm">
+                <span class="input-group-text bg-light text-secondary"><i class="bi bi-search"></i></span>
+                <input type="text" class="form-control" placeholder="Tìm theo SKU, tên giày, size, màu..." @bind="searchTerm" @bind:event="oninput" @onkeydown="HandleKeyDown" />
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <select class="form-select form-select-sm" @bind="selectedCategory" @bind:after="LoadInventory">
+                <option value="">-- Tất cả danh mục --</option>
+                @if (categories != null)
+                {
+                    @foreach (var c in categories)
+                    {
+                        <option value="@c.CategoryId">@c.CategoryName</option>
+                    }
+                }
+            </select>
+        </div>
+
+        <div class="col-md-3">
+            <div class="form-check form-switch pt-1">
+                <input class="form-check-input" type="checkbox" id="switchLowStock" @bind="onlyLowStock" @bind:after="LoadInventory" />
+                <label class="form-check-label small fw-semibold text-danger" for="switchLowStock">
+                    <i class="bi bi-exclamation-triangle-fill me-1"></i> Chỉ xem giày sắp hết hàng
+                </label>
+            </div>
+        </div>
+
+        <div class="col-md-2 d-flex gap-2">
+            <button class="btn btn-sm btn-dark w-100" @onclick="LoadInventory">Lọc</button>
+            <button class="btn btn-sm btn-outline-secondary" @onclick="ResetFilter" title="Đặt lại">
+                <i class="bi bi-arrow-counterclockwise"></i>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Table -->
+<div class="table-custom shadow-sm mb-4">
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="text-muted mt-2">Đang tải dữ liệu tồn kho...</p>
+        </div>
+    }
+    else if (stockList == null || !stockList.Any())
+    {
+        <div class="text-center py-5 text-secondary">
+            Không có biến thể giày nào phù hợp với điều kiện tìm kiếm.
+        </div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table align-middle">
+                <thead>
+                    <tr>
+                        <th>Mã SKU</th>
+                        <th>Tên Sản Phẩm Giày</th>
+                        <th>Danh Mục</th>
+                        <th>Kích Cỡ (Size)</th>
+                        <th>Màu Sắc</th>
+                        <th class="text-end">Giá Niêm Yết</th>
+                        <th class="text-center">Số Lượng Tồn</th>
+                        <th class="text-center">Ngưỡng Báo Hết</th>
+                        <th>Tình Trạng Kho</th>
+                        <th>Trạng Thái</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in stockList)
+                    {
+                        <tr class="@(item.IsLowStock ? "table-warning bg-opacity-25" : "")">
+                            <td class="fw-bold font-monospace text-primary">@item.Sku</td>
+                            <td class="fw-semibold text-dark">
+                                <a href="/product/@item.ProductId" target="_blank" class="text-dark text-decoration-none">
+                                    @item.ProductName
+                                </a>
+                            </td>
+                            <td class="small text-secondary">@(item.CategoryName ?? "-")</td>
+                            <td>
+                                <span class="badge bg-light text-dark border px-2 py-1">Size @item.Size</span>
+                            </td>
+                            <td>@item.Color</td>
+                            <td class="text-end fw-semibold">@item.Price.ToString("N0") ₫</td>
+                            <td class="text-center">
+                                <span class="badge @(item.StockQuantity == 0 ? "bg-dark" : (item.IsLowStock ? "bg-danger" : "bg-success")) px-2 py-1 fs-6">
+                                    @item.StockQuantity
+                                </span>
+                            </td>
+                            <td class="text-center text-muted small">@item.LowStockThreshold</td>
+                            <td>
+                                @if (item.StockQuantity == 0)
+                                {
+                                    <span class="badge bg-danger text-white">Hết hàng</span>
+                                }
+                                else if (item.IsLowStock)
+                                {
+                                    <span class="badge bg-warning text-dark">
+                                        <i class="bi bi-exclamation-triangle-fill me-1"></i> Sắp hết
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle">
+                                        Đủ tồn kho
+                                    </span>
+                                }
+                            </td>
+                            <td>
+                                <span class="status-badge @(item.Status == ProductStatus.Selling ? "completed" : "cancelled")">
+                                    @item.Status
+                                </span>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <div class="p-3 bg-light border-top text-secondary small d-flex justify-content-between">
+            <span>Tổng cộng: <strong>@stockList.Count</strong> biến thể giày</span>
+            <span class="text-danger fw-semibold">
+                <i class="bi bi-exclamation-octagon me-1"></i> @stockList.Count(x => x.IsLowStock) biến thể cần nhập thêm hàng
+            </span>
+        </div>
+    }
+</div>
+
+@code {
+    private List<StockVariantView>? stockList;
+    private List<Category>? categories;
+    private bool isLoading = true;
+
+    private string searchTerm = "";
+    private string selectedCategory = "";
+    private bool onlyLowStock = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        categories = await CategoryBrandService.GetAllCategoriesAsync();
+        await LoadInventory();
+    }
+
+    private async Task LoadInventory()
+    {
+        isLoading = true;
+        int? catId = int.TryParse(selectedCategory, out var c) && c > 0 ? c : null;
+
+        stockList = await InventoryService.GetStockVariantsAsync(
+            searchTerm: searchTerm,
+            lowStockOnly: onlyLowStock,
+            categoryId: catId
+        );
+
+        isLoading = false;
+    }
+
+    private async Task ResetFilter()
+    {
+        searchTerm = "";
+        selectedCategory = "";
+        onlyLowStock = false;
+        await LoadInventory();
+    }
+
+    private void HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            LoadInventory();
+        }
+    }
+}
+

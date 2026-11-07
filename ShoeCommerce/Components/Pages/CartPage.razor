@@ -1,0 +1,301 @@
+@page "/cart"
+@inject ICartService CartService
+@inject IOrderService OrderService
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+
+<div class="container py-4">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb small">
+            <li class="breadcrumb-item"><a href="/" class="text-decoration-none">Trang chủ</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Giỏ hàng của bạn</li>
+        </ol>
+    </nav>
+
+    <h3 class="fw-bold text-dark mb-4">
+        <i class="bi bi-bag me-2"></i> Giỏ Hàng (@(cartSummary?.TotalQuantity ?? 0) sản phẩm)
+    </h3>
+
+    @if (!AuthService.IsAuthenticated || !AuthService.IsCustomer)
+    {
+        <div class="bg-white rounded-4 border p-5 text-center my-4">
+            <i class="bi bi-person-lock fs-1 text-secondary mb-3 d-block"></i>
+            <h5 class="fw-bold">Vui lòng đăng nhập để xem giỏ hàng của bạn</h5>
+            <p class="text-secondary small">Giỏ hàng được lưu trữ an toàn theo tài khoản khách hàng của bạn.</p>
+            <a href="/login?returnUrl=/cart" class="btn btn-dark rounded-pill px-4 mt-2">
+                Đăng Nhập Ngay
+            </a>
+            <div class="mt-2">
+                <span class="text-secondary small">Chưa có tài khoản? </span>
+                <a href="/register" class="small fw-semibold text-primary">Đăng ký thành viên</a>
+            </div>
+        </div>
+    }
+    else if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="text-muted mt-2">Đang tải giỏ hàng...</p>
+        </div>
+    }
+    else if (cartSummary == null || !cartSummary.Items.Any())
+    {
+        <div class="bg-white rounded-4 border p-5 text-center my-4">
+            <i class="bi bi-cart-x fs-1 text-secondary mb-3 d-block"></i>
+            <h5 class="fw-bold">Giỏ hàng của bạn đang trống</h5>
+            <p class="text-secondary small">Hãy khám phá bộ sưu tập giày mới nhất và chọn cho mình đôi giày ưng ý nhé!</p>
+            <a href="/products" class="btn btn-dark rounded-pill px-4 mt-2">
+                Khám Phá Sản Phẩm
+            </a>
+        </div>
+    }
+    else
+    {
+        <div class="row g-4">
+            <!-- Cart Items List -->
+            <div class="col-lg-8">
+                <div class="bg-white rounded-4 border overflow-hidden">
+                    <div class="table-responsive">
+                        <table class="table align-middle mb-0">
+                            <thead class="table-light">
+                                <tr class="text-secondary small text-uppercase" style="letter-spacing: 0.05em;">
+                                    <th style="min-width: 250px;">Sản phẩm</th>
+                                    <th>Đơn giá</th>
+                                    <th style="min-width: 140px;">Số lượng</th>
+                                    <th>Thành tiền</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var item in cartSummary.Items)
+                                {
+                                    <tr>
+                                        <td>
+                                            <div class="d-flex align-items-center gap-3">
+                                                <img src="@(item.ThumbnailUrl ?? "/images/products/nike_air_force_1.png")"
+                                                     alt="@item.ProductName"
+                                                     style="width: 70px; height: 70px; object-fit: contain; border-radius: 0.5rem; background: #f8fafc;" />
+                                                <div>
+                                                    <a href="/product/@item.ProductId" class="fw-semibold text-dark text-decoration-none d-block">
+                                                        @item.ProductName
+                                                    </a>
+                                                    <div class="text-secondary small">
+                                                        Size: <strong class="text-dark">@item.Size</strong> · Màu: <strong class="text-dark">@item.Color</strong>
+                                                    </div>
+                                                    <div class="text-muted small" style="font-size: 0.75rem;">
+                                                        SKU: @item.Sku
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td class="fw-semibold">
+                                            @item.UnitPrice.ToString("N0") ₫
+                                        </td>
+                                        <td>
+                                            <div class="qty-counter">
+                                                <button type="button" @onclick="() => UpdateQuantity(item.CartItemId, item.Quantity - 1)">-</button>
+                                                <span>@item.Quantity</span>
+                                                <button type="button" @onclick="() => UpdateQuantity(item.CartItemId, item.Quantity + 1)" disabled="@(item.Quantity >= item.StockQuantity)">+</button>
+                                            </div>
+                                            @if (item.Quantity >= item.StockQuantity)
+                                            {
+                                                <div class="text-warning small" style="font-size: 0.7rem;">(Tối đa trong kho)</div>
+                                            }
+                                        </td>
+                                        <td class="fw-bold text-dark">
+                                            @item.LineTotal.ToString("N0") ₫
+                                        </td>
+                                        <td class="text-end">
+                                            <button class="btn btn-sm btn-link text-danger p-0" title="Xóa" @onclick="() => RemoveItem(item.CartItemId)">
+                                                <i class="bi bi-trash fs-5"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="p-3 bg-light border-top d-flex justify-content-between align-items-center">
+                        <a href="/products" class="text-secondary small text-decoration-none">
+                            <i class="bi bi-arrow-left me-1"></i> Tiếp tục mua hàng
+                        </a>
+                        <button class="btn btn-sm btn-outline-danger" @onclick="ClearCart">
+                            <i class="bi bi-trash me-1"></i> Làm trống giỏ hàng
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Order Summary & Checkout -->
+            <div class="col-lg-4">
+                <div class="bg-white rounded-4 border p-4 sticky-top" style="top: 80px;">
+                    <h5 class="fw-bold text-dark mb-3">Tóm Tắt Đơn Hàng</h5>
+
+                    <!-- Promotion Code Input -->
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold text-secondary">Mã khuyến mãi (nếu có)</label>
+                        <div class="input-group input-group-sm">
+                            <input type="text" class="form-control" placeholder="Ví dụ: CHAO100" @bind="promoCodeInput" />
+                            <button class="btn btn-dark" type="button" @onclick="ApplyPromoCode">
+                                Áp dụng
+                            </button>
+                        </div>
+                        @if (!string.IsNullOrEmpty(promoMessage))
+                        {
+                            <div class="small mt-2 @(promoDiscount > 0 ? "text-success" : "text-danger")">
+                                <i class="bi @(promoDiscount > 0 ? "bi-check-circle" : "bi-exclamation-triangle") me-1"></i>
+                                @promoMessage
+                            </div>
+                        }
+                    </div>
+
+                    <div class="border-top pt-3 mb-3 d-flex flex-column gap-2 text-secondary small">
+                        <div class="d-flex justify-content-between">
+                            <span>Tạm tính tiền hàng:</span>
+                            <span class="text-dark fw-semibold">@cartSummary.TotalAmount.ToString("N0") ₫</span>
+                        </div>
+                        @if (promoDiscount > 0)
+                        {
+                            <div class="d-flex justify-content-between text-success">
+                                <span>Giảm giá (Mã @appliedPromoCode):</span>
+                                <span class="fw-bold">-@promoDiscount.ToString("N0") ₫</span>
+                            </div>
+                        }
+                        <div class="d-flex justify-content-between">
+                            <span>Phí vận chuyển:</span>
+                            <span class="text-success fw-semibold">Miễn phí giao hàng</span>
+                        </div>
+                    </div>
+
+                    <div class="border-top pt-3 mb-4 d-flex justify-content-between align-items-center">
+                        <span class="fw-bold text-dark fs-6">Tổng thanh toán:</span>
+                        <span class="fw-extrabold text-danger fs-4 fw-bold">
+                            @((cartSummary.TotalAmount - promoDiscount).ToString("N0")) ₫
+                        </span>
+                    </div>
+
+                    <button class="btn btn-dark-store btn-lg w-100 py-3 rounded-pill fw-bold shadow-sm" @onclick="ProceedToCheckout">
+                        Tiến Hành Thanh Toán <i class="bi bi-arrow-right ms-2"></i>
+                    </button>
+
+                    <div class="text-center text-secondary small mt-3">
+                        <i class="bi bi-shield-lock me-1"></i> Giao dịch an toàn & bảo mật 100%
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private CartSummaryDto? cartSummary;
+    private bool isLoading = true;
+
+    private string promoCodeInput = "";
+    private string appliedPromoCode = "";
+    private decimal promoDiscount = 0;
+    private string? promoMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCart();
+    }
+
+    private async Task LoadCart()
+    {
+        if (AuthService.IsAuthenticated && AuthService.IsCustomer && AuthService.CurrentUser != null)
+        {
+            isLoading = true;
+            cartSummary = await CartService.GetCartAsync(AuthService.CurrentUser.UserId);
+            isLoading = false;
+        }
+    }
+
+    private async Task UpdateQuantity(int cartItemId, int newQty)
+    {
+        if (AuthService.CurrentUser == null) return;
+        await CartService.UpdateQuantityAsync(AuthService.CurrentUser.UserId, cartItemId, newQty);
+        await LoadCart();
+        if (promoDiscount > 0 && cartSummary != null)
+        {
+            await RevalidatePromo(cartSummary.TotalAmount);
+        }
+    }
+
+    private async Task RemoveItem(int cartItemId)
+    {
+        if (AuthService.CurrentUser == null) return;
+        await CartService.RemoveItemAsync(AuthService.CurrentUser.UserId, cartItemId);
+        await LoadCart();
+        if (promoDiscount > 0 && cartSummary != null)
+        {
+            await RevalidatePromo(cartSummary.TotalAmount);
+        }
+    }
+
+    private async Task ClearCart()
+    {
+        if (AuthService.CurrentUser == null) return;
+        await CartService.ClearCartAsync(AuthService.CurrentUser.UserId);
+        promoDiscount = 0;
+        appliedPromoCode = "";
+        promoMessage = null;
+        await LoadCart();
+    }
+
+    private async Task ApplyPromoCode()
+    {
+        if (cartSummary == null || !cartSummary.Items.Any()) return;
+
+        if (string.IsNullOrWhiteSpace(promoCodeInput))
+        {
+            promoDiscount = 0;
+            appliedPromoCode = "";
+            promoMessage = "Vui lòng nhập mã khuyến mãi.";
+            return;
+        }
+
+        var res = await OrderService.ValidatePromotionAsync(promoCodeInput, cartSummary.TotalAmount);
+        if (res.Success)
+        {
+            promoDiscount = res.DiscountAmount;
+            appliedPromoCode = promoCodeInput.Trim().ToUpper();
+            promoMessage = res.Message;
+        }
+        else
+        {
+            promoDiscount = 0;
+            appliedPromoCode = "";
+            promoMessage = res.Message;
+        }
+    }
+
+    private async Task RevalidatePromo(decimal totalAmount)
+    {
+        if (string.IsNullOrWhiteSpace(appliedPromoCode)) return;
+        var res = await OrderService.ValidatePromotionAsync(appliedPromoCode, totalAmount);
+        if (res.Success)
+        {
+            promoDiscount = res.DiscountAmount;
+        }
+        else
+        {
+            promoDiscount = 0;
+            appliedPromoCode = "";
+            promoMessage = "Đơn hàng sau cập nhật không còn đủ điều kiện áp dụng mã.";
+        }
+    }
+
+    private void ProceedToCheckout()
+    {
+        var url = "/checkout";
+        if (!string.IsNullOrEmpty(appliedPromoCode))
+        {
+            url += $"?promo={appliedPromoCode}";
+        }
+        Navigation.NavigateTo(url);
+    }
+}
+

@@ -1,0 +1,308 @@
+@page "/admin/products"
+@layout Layout.AdminLayout
+@inject IProductService ProductService
+@inject ICategoryBrandService CategoryBrandService
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+
+<div class="mb-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+        <div>
+            <h4 class="fw-bold text-dark mb-1">
+                <i class="bi bi-box-seam me-2"></i> @(AuthService.IsAdmin ? "Quản Lý Sản Phẩm & Biến Thể" : "Tra Cứu Thông Tin Sản Phẩm")
+            </h4>
+            <p class="text-secondary small mb-0">
+                @(AuthService.IsAdmin ? "Quản lý danh mục sản phẩm, biến thể size/màu, giá bán và hình ảnh" : "Thông tin tra cứu, không có quyền thêm / sửa / xóa sản phẩm hoặc điều chỉnh kho.")
+            </p>
+        </div>
+
+        @if (AuthService.IsAdmin)
+        {
+            <a href="/admin/products/new" class="btn btn-dark btn-sm rounded-pill px-3 shadow-sm">
+                <i class="bi bi-plus-lg me-1"></i> Thêm Sản Phẩm Mới
+            </a>
+        }
+    </div>
+</div>
+
+@if (!string.IsNullOrEmpty(alertMessage))
+{
+    <div class="alert @(alertSuccess ? "alert-success" : "alert-warning") alert-dismissible fade show rounded-3 small mb-4" role="alert">
+        @alertMessage
+        <button type="button" class="btn-close" @onclick="() => alertMessage = null"></button>
+    </div>
+}
+
+<!-- Filters Bar -->
+<div class="bg-white rounded-4 border p-3 mb-4 shadow-sm">
+    <div class="row g-2 align-items-center">
+        <div class="col-md-3">
+            <div class="input-group input-group-sm">
+                <span class="input-group-text bg-light text-secondary"><i class="bi bi-search"></i></span>
+                <input type="text" class="form-control" placeholder="Tìm theo tên hoặc mã SP..." @bind="searchTerm" @bind:event="oninput" @onkeydown="HandleKeyDown" />
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <select class="form-select form-select-sm" @bind="selectedCategory" @bind:after="ApplyFilter">
+                <option value="">-- Tất cả danh mục --</option>
+                @if (categories != null)
+                {
+                    @foreach (var c in categories)
+                    {
+                        <option value="@c.CategoryId">@c.CategoryName</option>
+                    }
+                }
+            </select>
+        </div>
+
+        <div class="col-md-2">
+            <select class="form-select form-select-sm" @bind="selectedBrand" @bind:after="ApplyFilter">
+                <option value="">-- Tất cả thương hiệu --</option>
+                @if (brands != null)
+                {
+                    @foreach (var b in brands)
+                    {
+                        <option value="@b.BrandId">@b.BrandName</option>
+                    }
+                }
+            </select>
+        </div>
+
+        <div class="col-md-2">
+            <select class="form-select form-select-sm" @bind="selectedStatus" @bind:after="ApplyFilter">
+                <option value="">-- Trạng thái kinh doanh --</option>
+                <option value="Selling">Đang kinh doanh</option>
+                <option value="Discontinued">Ngừng kinh doanh</option>
+            </select>
+        </div>
+
+        <div class="col-md-2 d-flex gap-2">
+            <button class="btn btn-sm btn-dark w-100" @onclick="ApplyFilter">
+                Lọc
+            </button>
+            <button class="btn btn-sm btn-outline-secondary" @onclick="ResetFilter" title="Đặt lại">
+                <i class="bi bi-arrow-counterclockwise"></i>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Products Table -->
+<div class="table-custom shadow-sm mb-4">
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="text-muted mt-2">Đang tải danh sách sản phẩm...</p>
+        </div>
+    }
+    else if (products == null || !products.Any())
+    {
+        <div class="text-center py-5 text-secondary">
+            <i class="bi bi-inbox fs-1 mb-2 d-block"></i>
+            Không có sản phẩm nào phù hợp với bộ lọc.
+        </div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table align-middle">
+                <thead>
+                    <tr>
+                        <th style="width: 70px;">Ảnh</th>
+                        <th>Mã SP</th>
+                        <th>Tên Sản Phẩm</th>
+                        <th>Danh Mục</th>
+                        <th>Thương Hiệu</th>
+                        <th>Nhà Cung Cấp</th>
+                        <th>Biến Thể</th>
+                        <th>Tổng Tồn</th>
+                        <th>Trạng Thái</th>
+                        <th class="text-end" style="min-width: 180px;">Thao Tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var p in products)
+                    {
+                        var totalStock = p.Variants.Sum(v => v.StockQuantity);
+
+                        <tr>
+                            <td>
+                                <img src="@(p.ThumbnailUrl ?? "/images/products/nike_air_force_1.png")"
+                                     alt="@p.ProductName"
+                                     style="width: 48px; height: 48px; object-fit: contain; border-radius: 0.35rem; background: #f8fafc; border: 1px solid #e2e8f0;" />
+                            </td>
+                            <td class="fw-bold font-monospace text-primary">@p.ProductCode</td>
+                            <td class="fw-semibold text-dark">
+                                @p.ProductName
+                            </td>
+                            <td>@(p.Category?.CategoryName ?? "-")</td>
+                            <td>@(p.Brand?.BrandName ?? "-")</td>
+                            <td class="small text-secondary">@(p.Supplier?.SupplierName ?? "-")</td>
+                            <td>
+                                <a href="/admin/products/@p.ProductId/variants" class="badge bg-light text-primary border text-decoration-none">
+                                    <i class="bi bi-layers me-1"></i> @p.Variants.Count biến thể
+                                </a>
+                            </td>
+                            <td class="fw-bold @(totalStock <= 5 ? "text-danger" : "text-dark")">
+                                @totalStock
+                            </td>
+                            <td>
+                                @if (p.Status == ProductStatus.Selling)
+                                {
+                                    <span class="status-badge completed">Đang bán</span>
+                                }
+                                else
+                                {
+                                    <span class="status-badge cancelled">Ngừng bán</span>
+                                }
+                            </td>
+                            <td class="text-end">
+                                <div class="btn-group btn-group-sm">
+                                    <a href="/admin/products/@p.ProductId/variants" class="btn btn-outline-primary" title="Quản lý biến thể size/màu & tồn">
+                                        <i class="bi bi-stack"></i> Biến thể
+                                    </a>
+                                    @if (AuthService.IsAdmin)
+                                    {
+                                        <a href="/admin/products/@p.ProductId/edit" class="btn btn-outline-secondary" title="Sửa thông tin">
+                                            <i class="bi bi-pencil"></i>
+                                        </a>
+                                        <button class="btn btn-outline-warning" title="Đổi trạng thái kinh doanh" @onclick="() => ToggleStatus(p.ProductId)">
+                                            <i class="bi bi-power"></i>
+                                        </button>
+                                        <button class="btn btn-outline-danger" title="Xóa sản phẩm" @onclick="() => DeleteProduct(p.ProductId)">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        @if (totalPages > 1)
+        {
+            <div class="d-flex justify-content-between align-items-center p-3 border-top bg-light">
+                <span class="text-secondary small">
+                    Trang <strong>@currentPage</strong> / <strong>@totalPages</strong> (Tổng @totalCount sản phẩm)
+                </span>
+                <ul class="pagination pagination-sm mb-0">
+                    <li class="page-item @(currentPage == 1 ? "disabled" : "")">
+                        <button class="page-link" @onclick="() => ChangePage(currentPage - 1)">Trước</button>
+                    </li>
+                    @for (int i = 1; i <= totalPages; i++)
+                    {
+                        var pageIdx = i;
+                        <li class="page-item @(pageIdx == currentPage ? "active" : "")">
+                            <button class="page-link" @onclick="() => ChangePage(pageIdx)">@pageIdx</button>
+                        </li>
+                    }
+                    <li class="page-item @(currentPage == totalPages ? "disabled" : "")">
+                        <button class="page-link" @onclick="() => ChangePage(currentPage + 1)">Sau</button>
+                    </li>
+                </ul>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private List<Product>? products;
+    private List<Category>? categories;
+    private List<Brand>? brands;
+    private bool isLoading = true;
+
+    private string searchTerm = "";
+    private string selectedCategory = "";
+    private string selectedBrand = "";
+    private string selectedStatus = "";
+
+    private int currentPage = 1;
+    private int pageSize = 10;
+    private int totalCount = 0;
+    private int totalPages => (int)Math.Ceiling(totalCount / (double)pageSize);
+
+    private string? alertMessage;
+    private bool alertSuccess = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        categories = await CategoryBrandService.GetAllCategoriesAsync();
+        brands = await CategoryBrandService.GetAllBrandsAsync();
+        await LoadProducts();
+    }
+
+    private async Task LoadProducts()
+    {
+        isLoading = true;
+
+        int? catId = int.TryParse(selectedCategory, out var c) && c > 0 ? c : null;
+        int? brandId = int.TryParse(selectedBrand, out var b) && b > 0 ? b : null;
+        ProductStatus? status = Enum.TryParse<ProductStatus>(selectedStatus, out var s) ? s : null;
+
+        var res = await ProductService.GetAdminProductsAsync(
+            categoryId: catId,
+            brandId: brandId,
+            status: status,
+            searchTerm: searchTerm,
+            page: currentPage,
+            pageSize: pageSize
+        );
+
+        products = res.Items;
+        totalCount = res.TotalCount;
+        isLoading = false;
+    }
+
+    private async Task ApplyFilter()
+    {
+        currentPage = 1;
+        await LoadProducts();
+    }
+
+    private async Task ResetFilter()
+    {
+        searchTerm = "";
+        selectedCategory = "";
+        selectedBrand = "";
+        selectedStatus = "";
+        currentPage = 1;
+        await LoadProducts();
+    }
+
+    private async Task ChangePage(int p)
+    {
+        if (p < 1 || p > totalPages) return;
+        currentPage = p;
+        await LoadProducts();
+    }
+
+    private void HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            ApplyFilter();
+        }
+    }
+
+    private async Task ToggleStatus(int productId)
+    {
+        var res = await ProductService.ToggleProductStatusAsync(productId);
+        alertSuccess = res.Success;
+        alertMessage = res.Message;
+        await LoadProducts();
+    }
+
+    private async Task DeleteProduct(int productId)
+    {
+        var res = await ProductService.DeleteProductAsync(productId);
+        alertSuccess = res.Success;
+        alertMessage = res.Message;
+        await LoadProducts();
+    }
+}
+

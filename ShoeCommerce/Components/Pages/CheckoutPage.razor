@@ -1,0 +1,387 @@
+@page "/checkout"
+@inject ICartService CartService
+@inject IOrderService OrderService
+@inject IUserService UserService
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+
+<div class="container py-4">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb small">
+            <li class="breadcrumb-item"><a href="/" class="text-decoration-none">Trang chủ</a></li>
+            <li class="breadcrumb-item"><a href="/cart" class="text-decoration-none">Giỏ hàng</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Thanh toán & Đặt hàng</li>
+        </ol>
+    </nav>
+
+    <h3 class="fw-bold text-dark mb-4">
+        <i class="bi bi-credit-card me-2"></i> Xác Nhận Đặt Hàng
+    </h3>
+
+    @if (!AuthService.IsAuthenticated || !AuthService.IsCustomer)
+    {
+        <div class="bg-white rounded-4 border p-5 text-center my-4">
+            <i class="bi bi-person-lock fs-1 text-secondary mb-3 d-block"></i>
+            <h5 class="fw-bold">Vui lòng đăng nhập để thanh toán</h5>
+            <a href="/login?returnUrl=/checkout" class="btn btn-dark rounded-pill px-4 mt-2">Đăng Nhập</a>
+        </div>
+    }
+    else if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="text-muted mt-2">Đang tải thông tin đặt hàng...</p>
+        </div>
+    }
+    else if (cartSummary == null || !cartSummary.Items.Any())
+    {
+        <div class="bg-white rounded-4 border p-5 text-center my-4">
+            <i class="bi bi-cart-x fs-1 text-secondary mb-3 d-block"></i>
+            <h5 class="fw-bold">Giỏ hàng của bạn đang trống</h5>
+            <a href="/products" class="btn btn-dark rounded-pill px-4 mt-2">Mua sắm ngay</a>
+        </div>
+    }
+    else
+    {
+        <div class="row g-4">
+            <!-- Left Column: Shipping & Payment Method -->
+            <div class="col-lg-7">
+                <!-- 1. Address Selection -->
+                <div class="bg-white rounded-4 border p-4 mb-4">
+                    <h5 class="fw-bold text-dark mb-3">
+                        <i class="bi bi-geo-alt me-1 text-danger"></i> 1. Thông Tin Nhận Hàng
+                    </h5>
+
+                    @if (savedAddresses != null && savedAddresses.Any())
+                    {
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold text-secondary">Chọn địa chỉ từ sổ địa chỉ của bạn:</label>
+                            <div class="d-flex flex-column gap-2">
+                                @foreach (var addr in savedAddresses)
+                                {
+                                    <div class="form-check p-3 border rounded-3 @(selectedAddressId == addr.AddressId ? "border-primary bg-light" : "")" style="cursor: pointer;" @onclick="() => SelectAddress(addr)">
+                                        <input class="form-check-input ms-0 me-2" type="radio" name="addressRadio" id="@($"addr_{addr.AddressId}")" checked="@(selectedAddressId == addr.AddressId)" />
+                                        <label class="form-check-label w-100" for="@($"addr_{addr.AddressId}")">
+                                            <div class="d-flex justify-content-between align-items-center">
+                                                <strong>@addr.ReceiverName</strong>
+                                                @if (addr.IsDefault)
+                                                {
+                                                    <span class="badge bg-success-subtle text-success border border-success-subtle small">Mặc định</span>
+                                                }
+                                            </div>
+                                            <div class="text-secondary small mt-1">
+                                                <i class="bi bi-telephone me-1"></i> @addr.Phone
+                                            </div>
+                                            <div class="text-dark small mt-1">
+                                                <i class="bi bi-pin-map me-1"></i> @addr.AddressLine
+                                            </div>
+                                        </label>
+                                    </div>
+                                }
+                                <div class="form-check p-3 border rounded-3 @(selectedAddressId == 0 ? "border-primary bg-light" : "")" style="cursor: pointer;" @onclick="SelectNewAddress">
+                                    <input class="form-check-input ms-0 me-2" type="radio" name="addressRadio" id="addr_new" checked="@(selectedAddressId == 0)" />
+                                    <label class="form-check-label" for="addr_new">
+                                        <strong>+ Nhập địa chỉ nhận hàng khác</strong>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    }
+
+                    <!-- Shipping details input form -->
+                    <div class="mt-3">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold">Họ tên người nhận <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" @bind="receiverName" placeholder="Nguyễn Văn A" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold">Số điện thoại <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" @bind="phone" placeholder="0901234567" />
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label small fw-semibold">Địa chỉ giao hàng chi tiết <span class="text-danger">*</span></label>
+                                <textarea class="form-control" rows="2" @bind="shippingAddress" placeholder="Số nhà, tên đường, phường/xã, quận/huyện, tỉnh/thành phố"></textarea>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label small fw-semibold">Ghi chú đơn hàng (nếu có)</label>
+                                <input type="text" class="form-control" @bind="orderNote" placeholder="Ví dụ: Giao giờ hành chính, gọi trước khi giao..." />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. Payment Method -->
+                <div class="bg-white rounded-4 border p-4 mb-4">
+                    <h5 class="fw-bold text-dark mb-3">
+                        <i class="bi bi-wallet2 me-1 text-primary"></i> 2. Phương Thức Thanh Toán
+                    </h5>
+
+                    <div class="d-flex flex-column gap-3">
+                        <!-- COD Option -->
+                        <div class="p-3 border rounded-3 @(paymentMethod == PaymentMethod.COD ? "border-primary bg-light" : "")" style="cursor: pointer;" @onclick="() => paymentMethod = PaymentMethod.COD">
+                            <div class="form-check mb-0">
+                                <input class="form-check-input" type="radio" name="paymentRadio" id="pay_cod" checked="@(paymentMethod == PaymentMethod.COD)" />
+                                <label class="form-check-label w-100" for="pay_cod">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <strong>Thanh toán khi nhận hàng (COD)</strong>
+                                        <span class="badge bg-secondary">Mặc định</span>
+                                    </div>
+                                    <p class="text-secondary small mb-0 mt-1">
+                                        Quý khách thanh toán bằng tiền mặt trực tiếp cho nhân viên giao hàng khi nhận được sản phẩm.
+                                    </p>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Bank Transfer Option -->
+                        <div class="p-3 border rounded-3 @(paymentMethod == PaymentMethod.BankTransfer ? "border-primary bg-light" : "")" style="cursor: pointer;" @onclick="() => paymentMethod = PaymentMethod.BankTransfer">
+                            <div class="form-check mb-0">
+                                <input class="form-check-input" type="radio" name="paymentRadio" id="pay_bank" checked="@(paymentMethod == PaymentMethod.BankTransfer)" />
+                                <label class="form-check-label w-100" for="pay_bank">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <strong>Chuyển khoản ngân hàng (Xác nhận thủ công)</strong>
+                                        <i class="bi bi-bank fs-5 text-primary"></i>
+                                    </div>
+                                    <p class="text-secondary small mb-0 mt-1">
+                                        Chuyển khoản theo thông tin tài khoản cửa hàng. Quản lý / Nhân viên sẽ kiểm tra và xác nhận thủ công trước khi chuyển sang Đang giao.
+                                    </p>
+                                    @if (paymentMethod == PaymentMethod.BankTransfer)
+                                    {
+                                        <div class="alert alert-info py-2 px-3 small mt-2 mb-0">
+                                            <strong>Thông tin tài khoản:</strong> Vietcombank · STK: <strong>1029384756</strong> · Chủ TK: CỬA HÀNG GIÀY SHOESTORE. Cú pháp chuyển khoản sẽ được cung cấp ngay sau khi bạn bấm đặt hàng.
+                                        </div>
+                                    }
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Order Review & Place Order -->
+            <div class="col-lg-5">
+                <div class="bg-white rounded-4 border p-4 sticky-top" style="top: 80px;">
+                    <h5 class="fw-bold text-dark mb-3">Sản Phẩm Đặt Mua</h5>
+
+                    <!-- Items list -->
+                    <div class="d-flex flex-column gap-3 mb-3" style="max-height: 280px; overflow-y: auto;">
+                        @foreach (var item in cartSummary.Items)
+                        {
+                            <div class="d-flex align-items-center gap-3 pb-2 border-bottom">
+                                <img src="@(item.ThumbnailUrl ?? "/images/products/nike_air_force_1.png")"
+                                     alt="@item.ProductName"
+                                     style="width: 50px; height: 50px; object-fit: contain; border-radius: 0.35rem; background: #f8fafc;" />
+                                <div class="flex-grow-1">
+                                    <div class="fw-semibold small text-dark">@item.ProductName</div>
+                                    <div class="text-secondary small" style="font-size: 0.75rem;">
+                                        Size: @item.Size · @item.Color · SL: @item.Quantity
+                                    </div>
+                                </div>
+                                <div class="text-end fw-bold small">
+                                    @item.LineTotal.ToString("N0") ₫
+                                </div>
+                            </div>
+                        }
+                    </div>
+
+                    <!-- Promo Code input -->
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold text-secondary">Mã khuyến mãi</label>
+                        <div class="input-group input-group-sm">
+                            <input type="text" class="form-control" placeholder="Mã giảm giá..." @bind="promoCodeInput" />
+                            <button class="btn btn-dark" type="button" @onclick="ApplyPromo">Áp dụng</button>
+                        </div>
+                        @if (!string.IsNullOrEmpty(promoMessage))
+                        {
+                            <div class="small mt-1 @(promoDiscount > 0 ? "text-success" : "text-danger")">
+                                @promoMessage
+                            </div>
+                        }
+                    </div>
+
+                    <!-- Price Calculations -->
+                    <div class="border-top pt-3 mb-3 d-flex flex-column gap-2 text-secondary small">
+                        <div class="d-flex justify-content-between">
+                            <span>Tổng tiền hàng:</span>
+                            <span class="text-dark fw-semibold">@cartSummary.TotalAmount.ToString("N0") ₫</span>
+                        </div>
+                        @if (promoDiscount > 0)
+                        {
+                            <div class="d-flex justify-content-between text-success">
+                                <span>Giảm giá (Mã @appliedPromoCode):</span>
+                                <span class="fw-bold">-@promoDiscount.ToString("N0") ₫</span>
+                            </div>
+                        }
+                        <div class="d-flex justify-content-between">
+                            <span>Phí vận chuyển:</span>
+                            <span class="text-success fw-semibold">0 ₫ (Miễn phí)</span>
+                        </div>
+                    </div>
+
+                    <div class="border-top pt-3 mb-4 d-flex justify-content-between align-items-center">
+                        <span class="fw-bold text-dark fs-6">Tổng thanh toán:</span>
+                        <span class="fw-extrabold text-danger fs-4 fw-bold">
+                            @((cartSummary.TotalAmount - promoDiscount).ToString("N0")) ₫
+                        </span>
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(errorMessage))
+                    {
+                        <div class="alert alert-danger py-2 px-3 small rounded-3 mb-3">
+                            <i class="bi bi-exclamation-triangle-fill me-1"></i> @errorMessage
+                        </div>
+                    }
+
+                    <button class="btn btn-dark-store btn-lg w-100 py-3 rounded-pill fw-bold shadow-sm"
+                            @onclick="HandlePlaceOrder"
+                            disabled="@isSubmitting">
+                        @if (isSubmitting)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2"></span>
+                            <span>Đang xử lý đơn hàng...</span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-check2-circle me-2"></i>
+                            <span>Xác Nhận Đặt Hàng</span>
+                        }
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "promo")]
+    public string? QueryPromo { get; set; }
+
+    private CartSummaryDto? cartSummary;
+    private List<CustomerAddress>? savedAddresses;
+    private bool isLoading = true;
+
+    private int selectedAddressId = 0;
+    private string receiverName = "";
+    private string phone = "";
+    private string shippingAddress = "";
+    private string orderNote = "";
+
+    private PaymentMethod paymentMethod = PaymentMethod.COD;
+
+    private string promoCodeInput = "";
+    private string appliedPromoCode = "";
+    private decimal promoDiscount = 0;
+    private string? promoMessage;
+
+    private bool isSubmitting = false;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthService.IsAuthenticated && AuthService.IsCustomer && AuthService.CurrentUser != null)
+        {
+            isLoading = true;
+            cartSummary = await CartService.GetCartAsync(AuthService.CurrentUser.UserId);
+            savedAddresses = await UserService.GetCustomerAddressesAsync(AuthService.CurrentUser.UserId);
+
+            // Default form values from profile or default address
+            if (savedAddresses.Any())
+            {
+                var def = savedAddresses.FirstOrDefault(a => a.IsDefault) ?? savedAddresses.First();
+                SelectAddress(def);
+            }
+            else
+            {
+                receiverName = AuthService.CurrentUser.FullName;
+                phone = AuthService.CurrentUser.Phone;
+            }
+
+            if (!string.IsNullOrEmpty(QueryPromo) && cartSummary != null)
+            {
+                promoCodeInput = QueryPromo;
+                await ApplyPromo();
+            }
+
+            isLoading = false;
+        }
+    }
+
+    private void SelectAddress(CustomerAddress addr)
+    {
+        selectedAddressId = addr.AddressId;
+        receiverName = addr.ReceiverName;
+        phone = addr.Phone;
+        shippingAddress = addr.AddressLine;
+    }
+
+    private void SelectNewAddress()
+    {
+        selectedAddressId = 0;
+        receiverName = AuthService.CurrentUser?.FullName ?? "";
+        phone = AuthService.CurrentUser?.Phone ?? "";
+        shippingAddress = "";
+    }
+
+    private async Task ApplyPromo()
+    {
+        if (cartSummary == null) return;
+        if (string.IsNullOrWhiteSpace(promoCodeInput))
+        {
+            promoDiscount = 0;
+            appliedPromoCode = "";
+            promoMessage = null;
+            return;
+        }
+
+        var res = await OrderService.ValidatePromotionAsync(promoCodeInput, cartSummary.TotalAmount);
+        if (res.Success)
+        {
+            promoDiscount = res.DiscountAmount;
+            appliedPromoCode = promoCodeInput.Trim().ToUpper();
+            promoMessage = res.Message;
+        }
+        else
+        {
+            promoDiscount = 0;
+            appliedPromoCode = "";
+            promoMessage = res.Message;
+        }
+    }
+
+    private async Task HandlePlaceOrder()
+    {
+        errorMessage = null;
+
+        if (string.IsNullOrWhiteSpace(receiverName) || string.IsNullOrWhiteSpace(phone) || string.IsNullOrWhiteSpace(shippingAddress))
+        {
+            errorMessage = "Vui lòng nhập đầy đủ tên người nhận, số điện thoại và địa chỉ giao hàng.";
+            return;
+        }
+
+        if (AuthService.CurrentUser == null) return;
+
+        isSubmitting = true;
+        var res = await OrderService.PlaceOrderAsync(
+            customerId: AuthService.CurrentUser.UserId,
+            receiverName: receiverName,
+            phone: phone,
+            shippingAddress: shippingAddress,
+            note: orderNote,
+            paymentMethod: paymentMethod,
+            promoCode: appliedPromoCode
+        );
+        isSubmitting = false;
+
+        if (res.Success && !string.IsNullOrEmpty(res.OrderCode))
+        {
+            Navigation.NavigateTo($"/order-success/{res.OrderCode}");
+        }
+        else
+        {
+            errorMessage = res.Message;
+        }
+    }
+}
+

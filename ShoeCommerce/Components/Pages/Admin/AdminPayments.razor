@@ -1,0 +1,302 @@
+@page "/admin/payments"
+@layout Layout.AdminLayout
+@inject IPaymentService PaymentService
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+
+<div class="mb-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+        <div>
+            <h4 class="fw-bold text-dark mb-1">
+                <i class="bi bi-credit-card me-2 text-primary"></i> Quản Lý Thanh Toán & Đối Soát
+            </h4>
+            <p class="text-secondary small mb-0">Theo dõi, kiểm tra sao kê ngân hàng và xác nhận thanh toán cho các đơn hàng</p>
+        </div>
+    </div>
+</div>
+
+@if (!string.IsNullOrEmpty(alertMessage))
+{
+    <div class="alert @(alertSuccess ? "alert-success" : "alert-warning") alert-dismissible fade show rounded-3 small mb-4" role="alert">
+        @alertMessage
+        <button type="button" class="btn-close" @onclick="() => alertMessage = null"></button>
+    </div>
+}
+
+<!-- Filters Bar -->
+<div class="bg-white rounded-4 border p-3 mb-4 shadow-sm">
+    <div class="row g-2 align-items-center">
+        <div class="col-md-4">
+            <div class="input-group input-group-sm">
+                <span class="input-group-text bg-light text-secondary"><i class="bi bi-search"></i></span>
+                <input type="text" class="form-control" placeholder="Tìm theo mã đơn, khách hàng, mã đối soát..." @bind="searchTerm" @bind:event="oninput" @onkeydown="HandleKeyDown" />
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <select class="form-select form-select-sm" @bind="selectedStatus" @bind:after="ApplyFilter">
+                <option value="">-- Tất cả trạng thái thanh toán --</option>
+                <option value="Unpaid">Chưa thanh toán (Unpaid)</option>
+                <option value="Paid">Đã thanh toán (Paid)</option>
+                <option value="Cancelled">Đã hủy (Cancelled)</option>
+            </select>
+        </div>
+
+        <div class="col-md-3">
+            <select class="form-select form-select-sm" @bind="selectedMethod" @bind:after="ApplyFilter">
+                <option value="">-- Tất cả phương thức --</option>
+                <option value="COD">Tiền mặt khi nhận hàng (COD)</option>
+                <option value="BankTransfer">Chuyển khoản ngân hàng (BankTransfer)</option>
+            </select>
+        </div>
+
+        <div class="col-md-2 d-flex gap-2">
+            <button class="btn btn-sm btn-dark w-100" @onclick="ApplyFilter">Lọc</button>
+            <button class="btn btn-sm btn-outline-secondary" @onclick="ResetFilter" title="Đặt lại">
+                <i class="bi bi-arrow-counterclockwise"></i>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Payments Table -->
+<div class="table-custom shadow-sm mb-4">
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="text-muted mt-2">Đang tải thanh toán...</p>
+        </div>
+    }
+    else if (payments == null || !payments.Any())
+    {
+        <div class="text-center py-5 text-secondary">
+            Không tìm thấy bản ghi thanh toán nào.
+        </div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table align-middle">
+                <thead>
+                    <tr>
+                        <th>Mã Đơn</th>
+                        <th>Khách Hàng</th>
+                        <th>Hình Thức</th>
+                        <th class="text-end">Số Tiền Phải Thu</th>
+                        <th>Trạng Thái</th>
+                        <th>Mã Đối Soát (Bank)</th>
+                        <th>Thời Gian Xác Nhận</th>
+                        <th>Người Xác Nhận</th>
+                        <th class="text-end" style="min-width: 140px;">Thao Tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var p in payments)
+                    {
+                        <tr>
+                            <td>
+                                <a href="/admin/orders/@p.OrderId" class="fw-bold font-monospace text-primary text-decoration-none">
+                                    @p.OrderCode
+                                </a>
+                            </td>
+                            <td class="fw-semibold text-dark">@p.CustomerName</td>
+                            <td>
+                                <span class="badge @(p.PaymentMethod == PaymentMethod.COD ? "bg-light text-dark border" : "bg-info-subtle text-info border border-info-subtle")">
+                                    @(p.PaymentMethod == PaymentMethod.COD ? "COD" : "Chuyển khoản")
+                                </span>
+                            </td>
+                            <td class="text-end fw-bold text-dark">
+                                @p.Amount.ToString("N0") ₫
+                            </td>
+                            <td>
+                                <span class="badge @(p.PaymentStatus == PaymentStatus.Paid ? "bg-success" : (p.PaymentStatus == PaymentStatus.Cancelled ? "bg-danger" : "bg-warning text-dark"))">
+                                    @(p.PaymentStatus switch
+                                    {
+                                        PaymentStatus.Paid => "Đã thanh toán",
+                                        PaymentStatus.Cancelled => "Đã hủy",
+                                        _ => "Chưa thanh toán"
+                                    })
+                                </span>
+                            </td>
+                            <td class="small font-monospace">@(p.TransferReference ?? "-")</td>
+                            <td class="small text-secondary">@(p.ConfirmedAt?.ToString("dd/MM/yyyy HH:mm") ?? "-")</td>
+                            <td class="small">@(p.ConfirmedByUserName ?? "-")</td>
+                            <td class="text-end">
+                                @if (p.PaymentStatus == PaymentStatus.Unpaid && p.PaymentMethod == PaymentMethod.BankTransfer)
+                                {
+                                    <button class="btn btn-sm btn-success rounded-pill px-3 shadow-sm" @onclick="() => OpenConfirmModal(p)">
+                                        <i class="bi bi-check2-circle me-1"></i> Xác Nhận Đã Nhận Tiền
+                                    </button>
+                                }
+                                else
+                                {
+                                    <a href="/admin/orders/@p.OrderId" class="btn btn-sm btn-outline-secondary rounded-pill px-3">
+                                        Xem đơn
+                                    </a>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        @if (totalPages > 1)
+        {
+            <div class="d-flex justify-content-between align-items-center p-3 border-top bg-light">
+                <span class="text-secondary small">
+                    Trang <strong>@currentPage</strong> / <strong>@totalPages</strong> (Tổng @totalCount bản ghi)
+                </span>
+                <ul class="pagination pagination-sm mb-0">
+                    <li class="page-item @(currentPage == 1 ? "disabled" : "")">
+                        <button class="page-link" @onclick="() => ChangePage(currentPage - 1)">Trước</button>
+                    </li>
+                    @for (int i = 1; i <= totalPages; i++)
+                    {
+                        var pageIdx = i;
+                        <li class="page-item @(pageIdx == currentPage ? "active" : "")">
+                            <button class="page-link" @onclick="() => ChangePage(pageIdx)">@pageIdx</button>
+                        </li>
+                    }
+                    <li class="page-item @(currentPage == totalPages ? "disabled" : "")">
+                        <button class="page-link" @onclick="() => ChangePage(currentPage + 1)">Sau</button>
+                    </li>
+                </ul>
+            </div>
+        }
+    }
+</div>
+
+<!-- Modal Xác Nhận Thanh Toán Chuyển Khoản -->
+@if (showConfirmModal && selectedPayment != null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content rounded-4 border-0">
+                <div class="modal-header border-bottom">
+                    <h5 class="modal-title fw-bold text-success">
+                        <i class="bi bi-check-circle me-1"></i> Xác Nhận Thanh Toán Chuyển Khoản
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="() => showConfirmModal = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="p-3 bg-light rounded-3 small mb-3">
+                        <div>Đơn hàng: <strong class="font-monospace text-primary">@selectedPayment.OrderCode</strong></div>
+                        <div>Khách hàng: <strong>@selectedPayment.CustomerName</strong></div>
+                        <div class="fs-6 mt-1">Số tiền cần nhận: <strong class="text-danger fs-5">@selectedPayment.Amount.ToString("N0") ₫</strong></div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Mã giao dịch ngân hàng / Mã đối soát</label>
+                        <input type="text" class="form-control" placeholder="Ví dụ: VCB-982374619..." @bind="transferRefInput" />
+                        <span class="text-muted" style="font-size: 0.725rem;">Nhập mã giao dịch để thuận tiện đối chiếu và lưu trữ lịch sử</span>
+                    </div>
+
+                    <div class="alert alert-warning py-2 small mb-0">
+                        <i class="bi bi-exclamation-circle me-1"></i> Chỉ bấm xác nhận khi đã kiểm tra tài khoản thực tế và nhận đủ số tiền.
+                    </div>
+                </div>
+                <div class="modal-footer border-top">
+                    <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill px-3" @onclick="() => showConfirmModal = false">Hủy</button>
+                    <button type="button" class="btn btn-success btn-sm rounded-pill px-4 fw-bold" @onclick="ConfirmPayment">
+                        Xác Nhận Đã Nhận Tiền
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<PaymentViewDto>? payments;
+    private bool isLoading = true;
+
+    private string searchTerm = "";
+    private string selectedStatus = "";
+    private string selectedMethod = "";
+
+    private int currentPage = 1;
+    private int pageSize = 10;
+    private int totalCount = 0;
+    private int totalPages => (int)Math.Ceiling(totalCount / (double)pageSize);
+
+    private string? alertMessage;
+    private bool alertSuccess = true;
+
+    private bool showConfirmModal = false;
+    private PaymentViewDto? selectedPayment;
+    private string transferRefInput = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadPayments();
+    }
+
+    private async Task LoadPayments()
+    {
+        isLoading = true;
+        PaymentStatus? status = Enum.TryParse<PaymentStatus>(selectedStatus, out var s) ? s : null;
+        PaymentMethod? method = Enum.TryParse<PaymentMethod>(selectedMethod, out var m) ? m : null;
+
+        var res = await PaymentService.GetPaymentsAsync(
+            status: status,
+            method: method,
+            searchTerm: searchTerm,
+            page: currentPage,
+            pageSize: pageSize
+        );
+
+        payments = res.Items;
+        totalCount = res.TotalCount;
+        isLoading = false;
+    }
+
+    private async Task ApplyFilter()
+    {
+        currentPage = 1;
+        await LoadPayments();
+    }
+
+    private async Task ResetFilter()
+    {
+        searchTerm = "";
+        selectedStatus = "";
+        selectedMethod = "";
+        currentPage = 1;
+        await LoadPayments();
+    }
+
+    private async Task ChangePage(int p)
+    {
+        if (p < 1 || p > totalPages) return;
+        currentPage = p;
+        await LoadPayments();
+    }
+
+    private void HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            ApplyFilter();
+        }
+    }
+
+    private void OpenConfirmModal(PaymentViewDto p)
+    {
+        selectedPayment = p;
+        transferRefInput = $"VCB-{DateTime.Now:yyyyMMddHHmm}";
+        showConfirmModal = true;
+    }
+
+    private async Task ConfirmPayment()
+    {
+        if (selectedPayment == null || AuthService.CurrentUser == null) return;
+        var res = await PaymentService.ConfirmBankTransferPaymentAsync(selectedPayment.PaymentId, transferRefInput, AuthService.CurrentUser.UserId);
+        alertSuccess = res.Success;
+        alertMessage = res.Message;
+        showConfirmModal = false;
+        await LoadPayments();
+    }
+}
+

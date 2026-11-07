@@ -1,23 +1,230 @@
-﻿@inherits LayoutComponentBase
+@inherits LayoutComponentBase
+@inject IAuthService AuthService
+@inject ICartService CartService
+@inject NavigationManager Navigation
+@implements IDisposable
 
-<div class="page">
-    <div class="sidebar">
-        <NavMenu />
+<div class="d-flex flex-column min-vh-100">
+    <!-- Top Announcement Bar -->
+    <div class="top-announcement-bar d-flex justify-content-between align-items-center">
+        <div class="container d-flex justify-content-between align-items-center">
+            <div>
+                <span class="badge-promo me-2">HOT DEAL</span>
+                <span>BƯỚC ĐI MỚI, CẢM HỨNG MỚI · Giảm 100.000 ₫ với mã <strong>CHAO100</strong> cho đơn từ 1.500.000 ₫</span>
+            </div>
+            <div class="d-none d-md-flex align-items-center gap-3">
+                <a href="/admin/login" class="text-white-50 text-decoration-none small">
+                    <i class="bi bi-shield-lock me-1"></i> Cổng Quản Trị
+                </a>
+                <span class="text-white-50">|</span>
+                <span class="text-white-50 small"><i class="bi bi-telephone me-1"></i> Hotline: 1900 6868</span>
+            </div>
+        </div>
     </div>
 
-    <main>
-        <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
+    <!-- Main Navigation Header -->
+    <header class="customer-header">
+        <div class="container py-2 d-flex align-items-center justify-content-between gap-3">
+            <!-- Brand Logo -->
+            <a href="/" class="brand-logo text-decoration-none">
+                shoestore<span class="dot">.</span>
+            </a>
+
+            <!-- Nav Links -->
+            <nav class="d-none d-lg-flex align-items-center gap-1">
+                <NavLink href="/" class="nav-link-custom" Match="NavLinkMatch.All">Trang chủ</NavLink>
+                <NavLink href="/products" class="nav-link-custom">Tất cả sản phẩm</NavLink>
+                <NavLink href="/products?category=1" class="nav-link-custom">Giày thể thao</NavLink>
+                <NavLink href="/products?category=2" class="nav-link-custom">Giày chạy bộ</NavLink>
+                <NavLink href="/products?category=3" class="nav-link-custom">Giày thời trang</NavLink>
+            </nav>
+
+            <!-- Search & Actions -->
+            <div class="d-flex align-items-center gap-3">
+                <!-- Search Box -->
+                <div class="search-input-group d-none d-sm-flex">
+                    <i class="bi bi-search text-muted me-2"></i>
+                    <input type="text" placeholder="Tìm giày, thương hiệu..." @bind="searchQuery" @bind:event="oninput" @onkeydown="HandleSearchKeyDown" />
+                </div>
+
+                <!-- Cart Button -->
+                <a href="/cart" class="cart-icon-btn text-decoration-none">
+                    <i class="bi bi-bag"></i>
+                    @if (cartItemCount > 0)
+                    {
+                        <span class="cart-badge">@cartItemCount</span>
+                    }
+                </a>
+
+                <!-- User Auth Area -->
+                @if (AuthService.IsAuthenticated && AuthService.IsCustomer)
+                {
+                    <div class="dropdown">
+                        <button class="btn btn-sm btn-outline-secondary dropdown-toggle d-flex align-items-center gap-2 rounded-pill px-3 py-1"
+                                type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-person-circle"></i>
+                            <span class="d-none d-md-inline small fw-semibold">@AuthService.CurrentUser?.FullName</span>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                            <li class="px-3 py-2 border-bottom">
+                                <div class="fw-bold small">@AuthService.CurrentUser?.FullName</div>
+                                <div class="text-muted" style="font-size: 0.75rem;">@AuthService.CurrentUser?.Email</div>
+                            </li>
+                            <li>
+                                <a class="dropdown-item py-2" href="/profile">
+                                    <i class="bi bi-person me-2"></i> Tài khoản của tôi
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item py-2" href="/addresses">
+                                    <i class="bi bi-geo-alt me-2"></i> Sổ địa chỉ
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item py-2" href="/orders">
+                                    <i class="bi bi-receipt me-2"></i> Đơn hàng của tôi
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item py-2" href="/my-reviews">
+                                    <i class="bi bi-star me-2"></i> Đánh giá của tôi
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <button class="dropdown-item text-danger py-2" @onclick="HandleLogout">
+                                    <i class="bi bi-box-arrow-right me-2"></i> Đăng xuất
+                                </button>
+                            </li>
+                        </ul>
+                    </div>
+                }
+                else
+                {
+                    <div class="d-flex align-items-center gap-2">
+                        <a href="/login" class="btn btn-sm btn-outline-dark rounded-pill px-3">Đăng nhập</a>
+                        <a href="/register" class="btn btn-sm btn-dark rounded-pill px-3 d-none d-sm-inline-block">Đăng ký</a>
+                    </div>
+                }
+            </div>
         </div>
+    </header>
 
-        <article class="content px-4">
-            @Body
-        </article>
+    <!-- Main Content -->
+    <main class="flex-grow-1">
+        @Body
     </main>
+
+    <!-- Footer -->
+    <footer class="bg-white border-top mt-5 pt-5 pb-4">
+        <div class="container">
+            <div class="row g-4 mb-5">
+                <div class="col-lg-4 col-md-6">
+                    <a href="/" class="brand-logo text-decoration-none mb-3 d-inline-block">
+                        shoestore<span class="dot">.</span>
+                    </a>
+                    <p class="text-secondary small">
+                        Hệ thống phân phối giày thể thao, giày chạy bộ và giày thời trang chính hãng hàng đầu Việt Nam. Cam kết 100% chính hãng, đa dạng size màu và giao hàng nhanh toàn quốc.
+                    </p>
+                    <div class="d-flex gap-3 text-secondary fs-5 mt-3">
+                        <a href="#" class="text-secondary"><i class="bi bi-facebook"></i></a>
+                        <a href="#" class="text-secondary"><i class="bi bi-instagram"></i></a>
+                        <a href="#" class="text-secondary"><i class="bi bi-tiktok"></i></a>
+                        <a href="#" class="text-secondary"><i class="bi bi-youtube"></i></a>
+                    </div>
+                </div>
+
+                <div class="col-lg-2 col-md-6">
+                    <h6 class="fw-bold text-dark mb-3">Danh mục nổi bật</h6>
+                    <ul class="list-unstyled text-secondary small d-flex flex-column gap-2">
+                        <li><a href="/products?category=1" class="text-secondary">Giày thể thao</a></li>
+                        <li><a href="/products?category=2" class="text-secondary">Giày chạy bộ</a></li>
+                        <li><a href="/products?category=3" class="text-secondary">Giày thời trang</a></li>
+                        <li><a href="/products?category=4" class="text-secondary">Giày tây công sở</a></li>
+                        <li><a href="/products?category=5" class="text-secondary">Sandal & Dép</a></li>
+                    </ul>
+                </div>
+
+                <div class="col-lg-3 col-md-6">
+                    <h6 class="fw-bold text-dark mb-3">Chính sách cửa hàng</h6>
+                    <ul class="list-unstyled text-secondary small d-flex flex-column gap-2">
+                        <li><span><i class="bi bi-check-circle-fill text-success me-1"></i> Cam kết 100% chính hãng</span></li>
+                        <li><span><i class="bi bi-shield-check text-primary me-1"></i> Bảo hành keo chỉ 6 tháng</span></li>
+                        <li><span><i class="bi bi-truck text-warning me-1"></i> Giao hàng COD toàn quốc</span></li>
+                        <li><span><i class="bi bi-cash-coin text-info me-1"></i> Hỗ trợ chuyển khoản xác nhận</span></li>
+                    </ul>
+                </div>
+
+                <div class="col-lg-3 col-md-6">
+                    <h6 class="fw-bold text-dark mb-3">Cửa hàng & Kho</h6>
+                    <p class="text-secondary small mb-2">
+                        <i class="bi bi-geo-alt-fill text-danger me-1"></i> 123 Nguyễn Trãi, Quận 1, TP. Hồ Chí Minh
+                    </p>
+                    <p class="text-secondary small mb-2">
+                        <i class="bi bi-envelope-fill text-primary me-1"></i> support@shoestore.vn
+                    </p>
+                    <p class="text-secondary small mb-2">
+                        <i class="bi bi-telephone-fill text-success me-1"></i> Hotline: 1900 6868 (8:00 - 21:00)
+                    </p>
+                    <div class="mt-3">
+                        <a href="/admin/login" class="btn btn-sm btn-outline-secondary rounded-pill w-100">
+                            <i class="bi bi-person-workspace me-1"></i> Dành cho Quản lý & Nhân viên
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="border-top pt-3 text-center text-secondary small">
+                © @DateTime.Now.Year ShoeStore. Đồ án xây dựng Website Quản lý và Bán giày - Nhóm 11.
+            </div>
+        </div>
+    </footer>
 </div>
 
-<div id="blazor-error-ui" data-nosnippet>
-    An unhandled error has occurred.
-    <a href="." class="reload">Reload</a>
-    <span class="dismiss">🗙</span>
-</div>
+@code {
+    private string searchQuery = "";
+    private int cartItemCount = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        AuthService.OnAuthStateChanged += OnAuthChanged;
+        await UpdateCartCount();
+    }
+
+    private async void OnAuthChanged()
+    {
+        await UpdateCartCount();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task UpdateCartCount()
+    {
+        if (AuthService.IsAuthenticated && AuthService.IsCustomer && AuthService.CurrentUser != null)
+        {
+            cartItemCount = await CartService.GetItemCountAsync(AuthService.CurrentUser.UserId);
+        }
+        else
+        {
+            cartItemCount = 0;
+        }
+    }
+
+    private void HandleSearchKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(searchQuery))
+        {
+            Navigation.NavigateTo($"/products?q={Uri.EscapeDataString(searchQuery.Trim())}");
+        }
+    }
+
+    private async Task HandleLogout()
+    {
+        await AuthService.LogoutAsync();
+        Navigation.NavigateTo("/");
+    }
+
+    public void Dispose()
+    {
+        AuthService.OnAuthStateChanged -= OnAuthChanged;
+    }
+}

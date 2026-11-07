@@ -1,0 +1,267 @@
+@page "/admin/employees"
+@layout Layout.AdminLayout
+@inject IUserService UserService
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+
+<div class="mb-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+        <div>
+            <h4 class="fw-bold text-dark mb-1">
+                <i class="bi bi-person-badge me-2 text-primary"></i> Quản Lý Nhân Viên (Màn hình 28)
+            </h4>
+            <p class="text-secondary small mb-0">Quản lý danh sách nhân viên cửa hàng, cấp tài khoản và phân quyền xử lý đơn hàng</p>
+        </div>
+
+        @if (AuthService.IsAdmin)
+        {
+            <button class="btn btn-dark btn-sm rounded-pill px-3 shadow-sm" @onclick="OpenAddModal">
+                <i class="bi bi-person-plus me-1"></i> Thêm Nhân Viên Mới
+            </button>
+        }
+    </div>
+</div>
+
+@if (!AuthService.IsAdmin)
+{
+    <div class="alert alert-danger py-4 text-center">
+        <i class="bi bi-shield-x fs-2 d-block mb-2"></i>
+        Bạn không có quyền truy cập trang này. Chức năng quản lý nhân viên chỉ dành riêng cho Quản lý (Admin).
+    </div>
+}
+else
+{
+    @if (!string.IsNullOrEmpty(alertMessage))
+    {
+        <div class="alert @(alertSuccess ? "alert-success" : "alert-warning") alert-dismissible fade show rounded-3 small mb-4" role="alert">
+            @alertMessage
+            <button type="button" class="btn-close" @onclick="() => alertMessage = null"></button>
+        </div>
+    }
+
+    <!-- Search Bar -->
+    <div class="bg-white rounded-4 border p-3 mb-4 shadow-sm" style="max-width: 450px;">
+        <div class="input-group input-group-sm">
+            <span class="input-group-text bg-light text-secondary"><i class="bi bi-search"></i></span>
+            <input type="text" class="form-control" placeholder="Tìm theo họ tên hoặc email..." @bind="searchTerm" @bind:event="oninput" @onkeydown="HandleKeyDown" />
+            <button class="btn btn-dark" @onclick="LoadEmployees">Tìm</button>
+        </div>
+    </div>
+
+    <!-- Table -->
+    <div class="table-custom shadow-sm mb-4">
+        @if (isLoading)
+        {
+            <div class="text-center py-5">
+                <div class="spinner-border text-primary" role="status"></div>
+                <p class="text-muted mt-2">Đang tải danh sách nhân viên...</p>
+            </div>
+        }
+        else if (employees == null || !employees.Any())
+        {
+            <div class="text-center py-5 text-secondary">
+                Không tìm thấy nhân viên nào.
+            </div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table align-middle">
+                    <thead>
+                        <tr>
+                            <th style="width: 70px;">ID</th>
+                            <th>Họ và Tên</th>
+                            <th>Email Đăng Nhập</th>
+                            <th>Số Điện Thoại</th>
+                            <th>Ngày Tuyển Dụng</th>
+                            <th>Trạng Thái</th>
+                            <th class="text-end" style="width: 160px;">Thao Tác</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var emp in employees)
+                        {
+                            <tr>
+                                <td class="text-muted">#@emp.UserId</td>
+                                <td class="fw-bold text-dark">
+                                    <i class="bi bi-person-badge-fill me-1 text-primary"></i> @emp.FullName
+                                </td>
+                                <td class="small">@emp.Email</td>
+                                <td class="small font-monospace">@emp.Phone</td>
+                                <td class="small text-secondary">@(emp.Employee?.HireDate?.ToString("dd/MM/yyyy") ?? "-")</td>
+                                <td>
+                                    @if (emp.IsActive)
+                                    {
+                                        <span class="status-badge completed">Đang làm việc</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="status-badge cancelled">Đang khóa</span>
+                                    }
+                                </td>
+                                <td class="text-end">
+                                    <div class="btn-group btn-group-sm">
+                                        <button class="btn btn-outline-secondary" title="Sửa thông tin" @onclick="() => OpenEditModal(emp)">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <button class="btn btn-outline-warning" title="Khóa / Mở khóa tài khoản" @onclick="() => ToggleLock(emp.UserId)">
+                                            <i class="bi @(emp.IsActive ? "bi-lock" : "bi-unlock")"></i>
+                                        </button>
+                                        <button class="btn btn-outline-danger" title="Xóa nhân viên" @onclick="() => DeleteEmployee(emp.UserId)">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+}
+
+<!-- Modal Thêm / Sửa Nhân Viên -->
+@if (showModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content rounded-4 border-0">
+                <div class="modal-header border-bottom">
+                    <h5 class="modal-title fw-bold">@(isEditing ? "Chỉnh Sửa Thông Tin Nhân Viên" : "Thêm Nhân Viên Mới")</h5>
+                    <button type="button" class="btn-close" @onclick="() => showModal = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Họ và tên nhân viên <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" placeholder="Trần Thảo Linh" @bind="formFullName" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Email đăng nhập <span class="text-danger">*</span></label>
+                        <input type="email" class="form-control" placeholder="linh@shoestore.com" @bind="formEmail" disabled="@isEditing" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Số điện thoại <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" placeholder="0912345678" @bind="formPhone" />
+                    </div>
+                    @if (!isEditing)
+                    {
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">Mật khẩu ban đầu <span class="text-danger">*</span></label>
+                            <input type="password" class="form-control" placeholder="Tối thiểu 6 ký tự" @bind="formPassword" />
+                        </div>
+                    }
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Ngày vào làm</label>
+                        <input type="date" class="form-control" @bind="formHireDate" />
+                    </div>
+                </div>
+                <div class="modal-footer border-top">
+                    <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill px-3" @onclick="() => showModal = false">Hủy</button>
+                    <button type="button" class="btn btn-dark btn-sm rounded-pill px-4" @onclick="SaveEmployee">Lưu Nhân Viên</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<User>? employees;
+    private bool isLoading = true;
+    private string searchTerm = "";
+
+    private string? alertMessage;
+    private bool alertSuccess = true;
+
+    private bool showModal = false;
+    private bool isEditing = false;
+    private int currentEditId = 0;
+
+    private string formFullName = "";
+    private string formEmail = "";
+    private string formPhone = "";
+    private string formPassword = "";
+    private DateOnly? formHireDate = DateOnly.FromDateTime(DateTime.Today);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadEmployees();
+    }
+
+    private async Task LoadEmployees()
+    {
+        if (AuthService.IsAdmin)
+        {
+            isLoading = true;
+            employees = await UserService.GetEmployeesAsync(searchTerm);
+            isLoading = false;
+        }
+    }
+
+    private void HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            LoadEmployees();
+        }
+    }
+
+    private void OpenAddModal()
+    {
+        isEditing = false;
+        currentEditId = 0;
+        formFullName = "";
+        formEmail = "";
+        formPhone = "";
+        formPassword = "";
+        formHireDate = DateOnly.FromDateTime(DateTime.Today);
+        showModal = true;
+    }
+
+    private void OpenEditModal(User emp)
+    {
+        isEditing = true;
+        currentEditId = emp.UserId;
+        formFullName = emp.FullName;
+        formEmail = emp.Email;
+        formPhone = emp.Phone;
+        formHireDate = emp.Employee?.HireDate;
+        showModal = true;
+    }
+
+    private async Task SaveEmployee()
+    {
+        if (isEditing)
+        {
+            var res = await UserService.UpdateEmployeeAsync(currentEditId, formFullName, formPhone, formHireDate);
+            alertSuccess = res.Success;
+            alertMessage = res.Message;
+        }
+        else
+        {
+            var res = await UserService.CreateEmployeeAsync(formFullName, formEmail, formPhone, formPassword, formHireDate);
+            alertSuccess = res.Success;
+            alertMessage = res.Message;
+        }
+
+        showModal = false;
+        await LoadEmployees();
+    }
+
+    private async Task ToggleLock(int userId)
+    {
+        var res = await UserService.ToggleUserActiveAsync(userId);
+        alertSuccess = res.Success;
+        alertMessage = res.Message;
+        await LoadEmployees();
+    }
+
+    private async Task DeleteEmployee(int userId)
+    {
+        var res = await UserService.DeleteEmployeeAsync(userId);
+        alertSuccess = res.Success;
+        alertMessage = res.Message;
+        await LoadEmployees();
+    }
+}
+

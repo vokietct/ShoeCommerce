@@ -1,0 +1,108 @@
+@page "/admin/login"
+@layout Layout.MainLayout
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+
+<div class="container py-5" style="max-width: 460px;">
+    <div class="bg-white rounded-4 border p-4 p-md-5 shadow-sm">
+        <div class="text-center mb-4">
+            <span class="badge bg-primary px-3 py-1 rounded-pill mb-2">CỔNG NỘI BỘ</span>
+            <div class="brand-logo fs-3">
+                shoestore<span class="dot">.</span>
+            </div>
+            <h5 class="fw-bold text-dark mt-2 mb-1">Đăng Nhập Quản Trị</h5>
+            <p class="text-secondary small mb-0">Dành riêng cho Quản lý (Admin) và Nhân viên (Employee)</p>
+        </div>
+
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert alert-danger py-2 px-3 small rounded-3 mb-3">
+                <i class="bi bi-exclamation-triangle-fill me-1"></i> @errorMessage
+            </div>
+        }
+
+        <EditForm Model="this" OnValidSubmit="HandleAdminLogin">
+            <div class="mb-3">
+                <label class="form-label small fw-semibold">Email tài khoản</label>
+                <div class="input-group">
+                    <span class="input-group-text bg-light text-secondary"><i class="bi bi-person-badge"></i></span>
+                    <input type="email" class="form-control" placeholder="admin@shoestore.vn" @bind="email" required />
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <label class="form-label small fw-semibold">Mật khẩu quản trị</label>
+                <div class="input-group">
+                    <span class="input-group-text bg-light text-secondary"><i class="bi bi-key"></i></span>
+                    <input type="password" class="form-control" placeholder="••••••••" @bind="password" required />
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-dark w-100 py-2 rounded-pill fw-bold shadow-sm" disabled="@isLoading">
+                @if (isLoading)
+                {
+                    <span class="spinner-border spinner-border-sm me-2"></span>
+                    <span>Đang xác thực quyền...</span>
+                }
+                else
+                {
+                    <i class="bi bi-box-arrow-in-right me-1"></i>
+                    <span>Đăng Nhập Quản Trị</span>
+                }
+            </button>
+        </EditForm>
+
+        <!-- Test Credentials Box -->
+        <div class="p-3 bg-light rounded-3 small text-secondary mt-4 border border-secondary-subtle">
+            <div class="fw-bold text-dark mb-1"><i class="bi bi-key-fill me-1"></i> Tài khoản nội bộ mẫu:</div>
+            <div class="mb-1">
+                <strong>1. Quản lý (Admin):</strong><br/>
+                Email: <code class="text-primary">admin@shoestore.vn</code> | MK: <code class="text-primary">admin123</code>
+            </div>
+            <div>
+                <strong>2. Nhân viên (Employee):</strong><br/>
+                Email: <code class="text-primary">linh@shoestore.com</code> | MK: <code class="text-primary">employee123</code>
+            </div>
+        </div>
+
+        <div class="text-center mt-3 pt-3 border-top text-secondary small">
+            <a href="/" class="text-secondary text-decoration-none">
+                <i class="bi bi-arrow-left me-1"></i> Quay về trang chủ cửa hàng
+            </a>
+        </div>
+    </div>
+</div>
+
+@code {
+    private string email = "admin@shoestore.vn";
+    private string password = "admin123";
+    private bool isLoading = false;
+    private string? errorMessage;
+
+    protected override void OnInitialized()
+    {
+        if (AuthService.IsAuthenticated && AuthService.IsAdminOrEmployee)
+        {
+            Navigation.NavigateTo("/admin");
+        }
+    }
+
+    private async Task HandleAdminLogin()
+    {
+        errorMessage = null;
+        isLoading = true;
+
+        var res = await AuthService.AdminLoginAsync(email, password);
+        isLoading = false;
+
+        if (res.Success)
+        {
+            Navigation.NavigateTo("/admin");
+        }
+        else
+        {
+            errorMessage = res.Message;
+        }
+    }
+}
+

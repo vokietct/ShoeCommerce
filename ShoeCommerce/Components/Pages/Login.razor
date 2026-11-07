@@ -1,0 +1,111 @@
+@page "/login"
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+
+<div class="container py-5" style="max-width: 460px;">
+    <div class="bg-white rounded-4 border p-4 p-md-5 shadow-sm">
+        <div class="text-center mb-4">
+            <a href="/" class="brand-logo text-decoration-none">
+                shoestore<span class="dot">.</span>
+            </a>
+            <h4 class="fw-bold text-dark mt-3 mb-1">Đăng Nhập Khách Hàng</h4>
+            <p class="text-secondary small">Chào mừng bạn quay trở lại với ShoeStore</p>
+        </div>
+
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert alert-danger py-2 px-3 small rounded-3 mb-3">
+                <i class="bi bi-exclamation-triangle-fill me-1"></i> @errorMessage
+            </div>
+        }
+
+        <EditForm Model="this" OnValidSubmit="HandleLogin">
+            <div class="mb-3">
+                <label class="form-label small fw-semibold">Địa chỉ Email</label>
+                <div class="input-group">
+                    <span class="input-group-text bg-light text-secondary"><i class="bi bi-envelope"></i></span>
+                    <input type="email" class="form-control" placeholder="name@example.com" @bind="email" required />
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <div class="d-flex justify-content-between align-items-center">
+                    <label class="form-label small fw-semibold mb-0">Mật khẩu</label>
+                </div>
+                <div class="input-group mt-1">
+                    <span class="input-group-text bg-light text-secondary"><i class="bi bi-key"></i></span>
+                    <input type="password" class="form-control" placeholder="••••••••" @bind="password" required />
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-dark-store w-100 py-2 rounded-pill fw-bold shadow-sm" disabled="@isLoading">
+                @if (isLoading)
+                {
+                    <span class="spinner-border spinner-border-sm me-2"></span>
+                    <span>Đang xác thực...</span>
+                }
+                else
+                {
+                    <span>Đăng Nhập</span>
+                }
+            </button>
+        </EditForm>
+
+        <!-- Quick Credential Helper for Testing -->
+        <div class="p-3 bg-light rounded-3 small text-secondary mt-4 border border-secondary-subtle">
+            <div class="fw-bold text-dark mb-1"><i class="bi bi-lightbulb me-1"></i> Tài khoản mẫu thử nghiệm:</div>
+            <div>Email: <strong class="text-dark">minhanh@example.com</strong></div>
+            <div>Mật khẩu: <strong class="text-dark">customer123</strong></div>
+        </div>
+
+        <div class="text-center mt-4 text-secondary small">
+            Chưa có tài khoản?
+            <a href="/register@(string.IsNullOrEmpty(ReturnUrl) ? "" : $"?returnUrl={ReturnUrl}")" class="fw-bold text-primary text-decoration-none ms-1">
+                Đăng ký ngay
+            </a>
+        </div>
+
+        <div class="text-center mt-3 pt-3 border-top text-secondary small">
+            <a href="/admin/login" class="text-secondary text-decoration-none">
+                <i class="bi bi-shield-lock me-1"></i> Đăng nhập quản trị viên / nhân viên
+            </a>
+        </div>
+    </div>
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "returnUrl")]
+    public string? ReturnUrl { get; set; }
+
+    private string email = "minhanh@example.com";
+    private string password = "customer123";
+    private bool isLoading = false;
+    private string? errorMessage;
+
+    protected override void OnInitialized()
+    {
+        if (AuthService.IsAuthenticated && AuthService.IsCustomer)
+        {
+            Navigation.NavigateTo(ReturnUrl ?? "/");
+        }
+    }
+
+    private async Task HandleLogin()
+    {
+        errorMessage = null;
+        isLoading = true;
+
+        var res = await AuthService.CustomerLoginAsync(email, password);
+        isLoading = false;
+
+        if (res.Success)
+        {
+            Navigation.NavigateTo(ReturnUrl ?? "/");
+        }
+        else
+        {
+            errorMessage = res.Message;
+        }
+    }
+}
+

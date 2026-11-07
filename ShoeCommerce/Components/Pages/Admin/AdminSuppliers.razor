@@ -1,0 +1,358 @@
+@page "/admin/suppliers"
+@layout Layout.AdminLayout
+@inject ISupplierService SupplierService
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+
+<div class="mb-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+        <div>
+            <h4 class="fw-bold text-dark mb-1">
+                <i class="bi bi-truck me-2 text-primary"></i> Quản Lý Nhà Cung Cấp
+            </h4>
+            <p class="text-secondary small mb-0">Quản lý các đối tác cung ứng giày cho cửa hàng ShoeStore</p>
+        </div>
+
+        @if (AuthService.IsAdmin)
+        {
+            <button class="btn btn-dark btn-sm rounded-pill px-3 shadow-sm" @onclick="OpenAddModal">
+                <i class="bi bi-plus-lg me-1"></i> Thêm Nhà Cung Cấp Mới
+            </button>
+        }
+    </div>
+</div>
+
+@if (!string.IsNullOrEmpty(alertMessage))
+{
+    <div class="alert @(alertSuccess ? "alert-success" : "alert-warning") alert-dismissible fade show rounded-3 small mb-4" role="alert">
+        @alertMessage
+        <button type="button" class="btn-close" @onclick="() => alertMessage = null"></button>
+    </div>
+}
+
+<!-- Search Bar -->
+<div class="bg-white rounded-4 border p-3 mb-4 shadow-sm" style="max-width: 450px;">
+    <div class="input-group input-group-sm">
+        <span class="input-group-text bg-light text-secondary"><i class="bi bi-search"></i></span>
+        <input type="text" class="form-control" placeholder="Tìm theo tên hoặc số điện thoại..." @bind="searchTerm" @bind:event="oninput" @onkeydown="HandleKeyDown" />
+        <button class="btn btn-dark" @onclick="LoadSuppliers">Tìm</button>
+    </div>
+</div>
+
+<!-- Table -->
+<div class="table-custom shadow-sm mb-4">
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="text-muted mt-2">Đang tải nhà cung cấp...</p>
+        </div>
+    }
+    else if (suppliers == null || !suppliers.Any())
+    {
+        <div class="text-center py-5 text-secondary">
+            Không tìm thấy nhà cung cấp nào.
+        </div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table align-middle">
+                <thead>
+                    <tr>
+                        <th style="width: 70px;">ID</th>
+                        <th>Tên Nhà Cung Cấp</th>
+                        <th>Số Điện Thoại</th>
+                        <th>Email</th>
+                        <th>Địa Chỉ</th>
+                        <th class="text-center">Số Sản Phẩm</th>
+                        <th>Trạng Thái</th>
+                        <th class="text-end" style="width: 160px;">Thao Tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var s in suppliers)
+                    {
+                        <tr>
+                            <td class="text-muted">#@s.SupplierId</td>
+                            <td class="fw-bold text-dark">@s.SupplierName</td>
+                            <td class="small">@(s.Phone ?? "-")</td>
+                            <td class="small text-secondary">@(s.Email ?? "-")</td>
+                            <td class="small text-secondary" style="max-width: 250px;">@(s.Address ?? "-")</td>
+                            <td class="text-center">
+                                <span class="badge bg-light text-primary border">@s.Products.Count SP</span>
+                            </td>
+                            <td>
+                                @if (s.IsCooperating)
+                                {
+                                    <span class="status-badge completed">Đang hợp tác</span>
+                                }
+                                else
+                                {
+                                    <span class="status-badge cancelled">Ngừng hợp tác</span>
+                                }
+                            </td>
+                            <td class="text-end">
+                                <div class="btn-group btn-group-sm">
+                                    <button class="btn btn-outline-info" title="Xem chi tiết & danh sách SP" @onclick="() => ViewDetail(s.SupplierId)">
+                                        <i class="bi bi-eye"></i>
+                                    </button>
+                                    @if (AuthService.IsAdmin)
+                                    {
+                                        <button class="btn btn-outline-secondary" title="Sửa thông tin" @onclick="() => OpenEditModal(s)">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <button class="btn btn-outline-warning" title="Đổi trạng thái hợp tác" @onclick="() => ToggleCooperating(s.SupplierId)">
+                                            <i class="bi bi-power"></i>
+                                        </button>
+                                        <button class="btn btn-outline-danger" title="Xóa nhà cung cấp" @onclick="() => DeleteSupplier(s.SupplierId)">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+<!-- Modal Thêm / Sửa -->
+@if (showModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content rounded-4 border-0">
+                <div class="modal-header border-bottom">
+                    <h5 class="modal-title fw-bold">@(isEditing ? "Chỉnh Sửa Nhà Cung Cấp" : "Thêm Nhà Cung Cấp Mới")</h5>
+                    <button type="button" class="btn-close" @onclick="() => showModal = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Tên nhà cung cấp <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" placeholder="Công ty TNHH..." @bind="formName" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Số điện thoại</label>
+                        <input type="text" class="form-control" placeholder="028..." @bind="formPhone" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Email liên hệ</label>
+                        <input type="email" class="form-control" placeholder="contact@@example.com" @bind="formEmail" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Địa chỉ trụ sở / kho</label>
+                        <textarea class="form-control" rows="2" placeholder="Địa chỉ..." @bind="formAddress"></textarea>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="chkCoop" @bind="formIsCoop" />
+                        <label class="form-check-label small" for="chkCoop">Đang hợp tác cung ứng</label>
+                    </div>
+                </div>
+                <div class="modal-footer border-top">
+                    <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill px-3" @onclick="() => showModal = false">Hủy</button>
+                    <button type="button" class="btn btn-dark btn-sm rounded-pill px-4" @onclick="SaveSupplier">Lưu Nhà Cung Cấp</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Modal Xem Chi Tiết Nhà Cung Cấp & Sản Phẩm Liên Quan -->
+@if (showDetailModal && detailSupplier != null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content rounded-4 border-0">
+                <div class="modal-header border-bottom">
+                    <h5 class="modal-title fw-bold">Chi Tiết Nhà Cung Cấp: @detailSupplier.SupplierName</h5>
+                    <button type="button" class="btn-close" @onclick="() => showDetailModal = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-2 mb-3 small bg-light p-3 rounded-3">
+                        <div class="col-sm-4 text-secondary">Số điện thoại:</div>
+                        <div class="col-sm-8 fw-semibold">@(detailSupplier.Phone ?? "-")</div>
+                        <div class="col-sm-4 text-secondary">Email:</div>
+                        <div class="col-sm-8 fw-semibold">@(detailSupplier.Email ?? "-")</div>
+                        <div class="col-sm-4 text-secondary">Địa chỉ:</div>
+                        <div class="col-sm-8 fw-semibold">@(detailSupplier.Address ?? "-")</div>
+                        <div class="col-sm-4 text-secondary">Trạng thái:</div>
+                        <div class="col-sm-8">
+                            <span class="badge @(detailSupplier.IsCooperating ? "bg-success" : "bg-danger")">
+                                @(detailSupplier.IsCooperating ? "Đang hợp tác" : "Ngừng hợp tác")
+                            </span>
+                        </div>
+                    </div>
+
+                    <h6 class="fw-bold mb-2">Danh Sách Sản Phẩm Cung Ứng (@detailSupplier.Products.Count)</h6>
+                    @if (!detailSupplier.Products.Any())
+                    {
+                        <p class="text-secondary small">Chưa có sản phẩm nào thuộc nhà cung cấp này.</p>
+                    }
+                    else
+                    {
+                        <div class="table-responsive" style="max-height: 250px; overflow-y: auto;">
+                            <table class="table table-sm align-middle mb-0 small">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Mã SP</th>
+                                        <th>Tên Sản Phẩm</th>
+                                        <th>Danh Mục</th>
+                                        <th>Thương Hiệu</th>
+                                        <th>Trạng Thái</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var prod in detailSupplier.Products)
+                                    {
+                                        <tr>
+                                            <td class="font-monospace fw-bold text-primary">@prod.ProductCode</td>
+                                            <td class="fw-semibold">@prod.ProductName</td>
+                                            <td>@(prod.Category?.CategoryName)</td>
+                                            <td>@(prod.Brand?.BrandName)</td>
+                                            <td>
+                                                <span class="badge @(prod.Status == ProductStatus.Selling ? "bg-success" : "bg-secondary")">
+                                                    @prod.Status
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer border-top">
+                    <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill px-4" @onclick="() => showDetailModal = false">Đóng</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<Supplier>? suppliers;
+    private bool isLoading = true;
+    private string searchTerm = "";
+
+    private string? alertMessage;
+    private bool alertSuccess = true;
+
+    private bool showModal = false;
+    private bool isEditing = false;
+    private int currentEditId = 0;
+
+    private string formName = "";
+    private string formPhone = "";
+    private string formEmail = "";
+    private string formAddress = "";
+    private bool formIsCoop = true;
+
+    private bool showDetailModal = false;
+    private Supplier? detailSupplier;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSuppliers();
+    }
+
+    private async Task LoadSuppliers()
+    {
+        isLoading = true;
+        suppliers = await SupplierService.GetSuppliersAsync(searchTerm);
+        isLoading = false;
+    }
+
+    private void HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            LoadSuppliers();
+        }
+    }
+
+    private void OpenAddModal()
+    {
+        isEditing = false;
+        currentEditId = 0;
+        formName = "";
+        formPhone = "";
+        formEmail = "";
+        formAddress = "";
+        formIsCoop = true;
+        showModal = true;
+    }
+
+    private void OpenEditModal(Supplier s)
+    {
+        isEditing = true;
+        currentEditId = s.SupplierId;
+        formName = s.SupplierName;
+        formPhone = s.Phone ?? "";
+        formEmail = s.Email ?? "";
+        formAddress = s.Address ?? "";
+        formIsCoop = s.IsCooperating;
+        showModal = true;
+    }
+
+    private async Task ViewDetail(int supplierId)
+    {
+        detailSupplier = await SupplierService.GetSupplierDetailAsync(supplierId);
+        showDetailModal = true;
+    }
+
+    private async Task SaveSupplier()
+    {
+        if (string.IsNullOrWhiteSpace(formName))
+        {
+            alertSuccess = false;
+            alertMessage = "Tên nhà cung cấp không được để trống.";
+            return;
+        }
+
+        var sup = new Supplier
+        {
+            SupplierId = currentEditId,
+            SupplierName = formName,
+            Phone = formPhone,
+            Email = formEmail,
+            Address = formAddress,
+            IsCooperating = formIsCoop
+        };
+
+        if (isEditing)
+        {
+            var res = await SupplierService.UpdateSupplierAsync(sup);
+            alertSuccess = res.Success;
+            alertMessage = res.Message;
+        }
+        else
+        {
+            var res = await SupplierService.CreateSupplierAsync(sup);
+            alertSuccess = res.Success;
+            alertMessage = res.Message;
+        }
+
+        showModal = false;
+        await LoadSuppliers();
+    }
+
+    private async Task ToggleCooperating(int supplierId)
+    {
+        var res = await SupplierService.ToggleCooperatingAsync(supplierId);
+        alertSuccess = res.Success;
+        alertMessage = res.Message;
+        await LoadSuppliers();
+    }
+
+    private async Task DeleteSupplier(int supplierId)
+    {
+        var res = await SupplierService.DeleteSupplierAsync(supplierId);
+        alertSuccess = res.Success;
+        alertMessage = res.Message;
+        await LoadSuppliers();
+    }
+}
+

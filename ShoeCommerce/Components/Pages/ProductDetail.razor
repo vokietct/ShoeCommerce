@@ -1,0 +1,496 @@
+@page "/product/{id:int}"
+@inject IProductService ProductService
+@inject ICartService CartService
+@inject IReviewService ReviewService
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+
+<div class="container py-4">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb small">
+            <li class="breadcrumb-item"><a href="/" class="text-decoration-none">Trang chủ</a></li>
+            <li class="breadcrumb-item"><a href="/products" class="text-decoration-none">Sản phẩm</a></li>
+            @if (product != null)
+            {
+                <li class="breadcrumb-item"><a href="/products?category=@product.CategoryId" class="text-decoration-none">@product.Category?.CategoryName</a></li>
+                <li class="breadcrumb-item active" aria-current="page">@product.ProductName</li>
+            }
+        </ol>
+    </nav>
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="text-muted mt-2">Đang tải chi tiết sản phẩm...</p>
+        </div>
+    }
+    else if (product == null)
+    {
+        <div class="bg-white rounded-3 border p-5 text-center">
+            <i class="bi bi-exclamation-circle fs-1 text-danger mb-3 d-block"></i>
+            <h4 class="fw-bold">Sản phẩm không tồn tại hoặc đã ngừng kinh doanh</h4>
+            <a href="/products" class="btn btn-dark rounded-pill mt-3 px-4">Quay lại danh sách</a>
+        </div>
+    }
+    else
+    {
+        <div class="row g-5 mb-5">
+            <!-- Product Gallery / Main Image -->
+            <div class="col-lg-6">
+                <div class="bg-white rounded-4 border p-4 text-center position-relative">
+                    <span class="badge bg-dark position-absolute top-0 start-0 m-3 px-3 py-2 rounded-pill">
+                        @(product.Brand?.BrandName ?? "Chính Hãng")
+                    </span>
+                    <img src="@(product.ThumbnailUrl ?? "/images/products/nike_air_force_1.png")"
+                         alt="@product.ProductName"
+                         class="img-fluid"
+                         style="max-height: 440px; object-fit: contain; filter: drop-shadow(0 15px 25px rgba(0,0,0,0.1));" />
+                </div>
+            </div>
+
+            <!-- Product Information & Actions -->
+            <div class="col-lg-6">
+                <div class="ps-lg-3">
+                    <div class="text-secondary small text-uppercase fw-semibold mb-1">
+                        Mã SP: <span class="text-dark">@product.ProductCode</span> · @(product.Category?.CategoryName)
+                    </div>
+                    <h2 class="fw-bold text-dark mb-2">@product.ProductName</h2>
+
+                    <!-- Ratings -->
+                    <div class="d-flex align-items-center gap-2 mb-3">
+                        <div class="star-rating">
+                            @for (int i = 1; i <= 5; i++)
+                            {
+                                if (i <= Math.Round(averageRating))
+                                {
+                                    <i class="bi bi-star-fill text-warning"></i>
+                                }
+                                else
+                                {
+                                    <i class="bi bi-star text-muted"></i>
+                                }
+                            }
+                            <span class="star-score">@averageRating.ToString("0.0")</span>
+                        </div>
+                        <span class="text-secondary small">(@product.Reviews.Count đánh giá từ khách hàng)</span>
+                    </div>
+
+                    <!-- Price Display -->
+                    <div class="p-3 bg-light rounded-3 mb-4 d-flex align-items-center justify-content-between">
+                        <div>
+                            <span class="text-secondary small d-block">Giá bán niêm yết:</span>
+                            <span class="fs-2 fw-bold text-dark">
+                                @(selectedVariant != null ? selectedVariant.Price.ToString("N0") : (product.Variants.Any() ? product.Variants.Min(v => v.Price).ToString("N0") : "0")) ₫
+                            </span>
+                        </div>
+                        <div>
+                            @if (selectedVariant != null)
+                            {
+                                if (selectedVariant.StockQuantity > selectedVariant.LowStockThreshold)
+                                {
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-2 rounded-pill">
+                                        <i class="bi bi-check-circle-fill me-1"></i> Còn @selectedVariant.StockQuantity sản phẩm
+                                    </span>
+                                }
+                                else if (selectedVariant.StockQuantity > 0)
+                                {
+                                    <span class="badge bg-warning-subtle text-warning border border-warning-subtle px-3 py-2 rounded-pill">
+                                        <i class="bi bi-exclamation-triangle-fill me-1"></i> Sắp hết (còn @selectedVariant.StockQuantity)
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-3 py-2 rounded-pill">
+                                        <i class="bi bi-x-circle-fill me-1"></i> Tạm hết hàng
+                                    </span>
+                                }
+                            }
+                        </div>
+                    </div>
+
+                    <!-- Size Selector -->
+                    <div class="mb-4">
+                        <label class="form-label fw-bold text-dark mb-2">
+                            Kích cỡ (Size): <span class="fw-normal text-primary">@selectedSize</span>
+                        </label>
+                        <div class="pill-selector">
+                            @foreach (var size in availableSizes)
+                            {
+                                <button type="button" class="pill-option @(selectedSize == size ? "active" : "")" @onclick="() => SelectSize(size)">
+                                    Size @size
+                                </button>
+                            }
+                        </div>
+                    </div>
+
+                    <!-- Color Selector -->
+                    <div class="mb-4">
+                        <label class="form-label fw-bold text-dark mb-2">
+                            Màu sắc: <span class="fw-normal text-primary">@selectedColor</span>
+                        </label>
+                        <div class="pill-selector">
+                            @foreach (var color in availableColorsForSize)
+                            {
+                                <button type="button" class="pill-option @(selectedColor == color ? "active" : "")" @onclick="() => SelectColor(color)">
+                                    @color
+                                </button>
+                            }
+                        </div>
+                    </div>
+
+                    <!-- SKU info -->
+                    @if (selectedVariant != null)
+                    {
+                        <div class="small text-secondary mb-4">
+                            Mã SKU biến thể: <strong class="text-dark">@selectedVariant.Sku</strong>
+                        </div>
+                    }
+
+                    <!-- Quantity Counter & Add to Cart -->
+                    <div class="d-flex flex-wrap align-items-center gap-3 mb-4">
+                        <div class="qty-counter">
+                            <button type="button" @onclick="DecrementQuantity" disabled="@(quantity <= 1)">-</button>
+                            <span>@quantity</span>
+                            <button type="button" @onclick="IncrementQuantity" disabled="@(selectedVariant != null && quantity >= selectedVariant.StockQuantity)">+</button>
+                        </div>
+
+                        <button type="button"
+                                class="btn btn-dark-store btn-lg px-4 flex-grow-1"
+                                @onclick="HandleAddToCart"
+                                disabled="@(selectedVariant == null || selectedVariant.StockQuantity <= 0 || isAddingToCart)">
+                            @if (isAddingToCart)
+                            {
+                                <span class="spinner-border spinner-border-sm me-2"></span>
+                            }
+                            else
+                            {
+                                <i class="bi bi-bag-plus me-2"></i>
+                            }
+                            Thêm Vào Giỏ Hàng
+                        </button>
+                    </div>
+
+                    <!-- Feedback Alert -->
+                    @if (!string.IsNullOrEmpty(feedbackMessage))
+                    {
+                        <div class="alert @(feedbackSuccess ? "alert-success" : "alert-danger") alert-dismissible fade show rounded-3 small" role="alert">
+                            <i class="bi @(feedbackSuccess ? "bi-check-circle" : "bi-exclamation-triangle") me-1"></i>
+                            @feedbackMessage
+                            @if (feedbackSuccess)
+                            {
+                                <a href="/cart" class="fw-bold ms-2 text-decoration-underline text-success">Xem giỏ hàng</a>
+                            }
+                            <button type="button" class="btn-close" @onclick="() => feedbackMessage = null"></button>
+                        </div>
+                    }
+
+                    <!-- Extra Guarantees -->
+                    <div class="border-top pt-3 mt-4 text-secondary small d-flex flex-column gap-2">
+                        <div><i class="bi bi-shield-check text-success me-2"></i> Bảo hành chính hãng 6 tháng trên toàn quốc</div>
+                        <div><i class="bi bi-truck text-primary me-2"></i> Giao hàng tận nơi, được kiểm tra hàng trước khi thanh toán (COD)</div>
+                        <div><i class="bi bi-arrow-repeat text-info me-2"></i> Hỗ trợ đổi size trong vòng 7 ngày nếu không vừa</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Details Tabs: Description & Reviews -->
+        <div class="bg-white rounded-4 border p-4 mb-5">
+            <ul class="nav nav-pills mb-4" id="pills-tab" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link rounded-pill @(activeTab == "desc" ? "active bg-dark" : "text-dark")" @onclick="SetTabDesc">
+                        <i class="bi bi-file-text me-1"></i> Mô tả sản phẩm
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link rounded-pill @(activeTab == "reviews" ? "active bg-dark" : "text-dark")" @onclick="SetTabReviews">
+                        <i class="bi bi-chat-left-text me-1"></i> Đánh giá của khách hàng (@product.Reviews.Count)
+                    </button>
+                </li>
+            </ul>
+
+            <div class="tab-content">
+                @if (activeTab == "desc")
+                {
+                    <div class="p-2">
+                        <h5 class="fw-bold mb-3">Thông tin chi tiết về @product.ProductName</h5>
+                        <p class="text-secondary" style="line-height: 1.8;">
+                            @(string.IsNullOrWhiteSpace(product.Description) ? "Đang cập nhật mô tả chi tiết cho sản phẩm này." : product.Description)
+                        </p>
+                        <div class="row g-3 mt-3" style="max-width: 500px;">
+                            <div class="col-6 text-secondary small">Thương hiệu:</div>
+                            <div class="col-6 fw-semibold small">@(product.Brand?.BrandName)</div>
+                            <div class="col-6 text-secondary small">Danh mục:</div>
+                            <div class="col-6 fw-semibold small">@(product.Category?.CategoryName)</div>
+                            <div class="col-6 text-secondary small">Nhà cung cấp:</div>
+                            <div class="col-6 fw-semibold small">@(product.Supplier?.SupplierName)</div>
+                            <div class="col-6 text-secondary small">Xuất xứ:</div>
+                            <div class="col-6 fw-semibold small">Chính hãng nhập khẩu</div>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="p-2">
+                        <!-- Write Review Form if eligible -->
+                        @if (canReview)
+                        {
+                            <div class="bg-light p-4 rounded-3 border mb-4">
+                                <h6 class="fw-bold text-dark mb-2">
+                                    <i class="bi bi-pencil-square me-1"></i> Viết đánh giá cho sản phẩm này
+                                </h6>
+                                <p class="text-secondary small mb-3">Bạn đã mua sản phẩm này trong đơn hàng hoàn tất. Hãy chia sẻ trải nghiệm của bạn nhé!</p>
+
+                                <div class="mb-3">
+                                    <label class="form-label small fw-semibold">Chọn số sao đánh giá:</label>
+                                    <div class="d-flex gap-2">
+                                        @for (byte s = 1; s <= 5; s++)
+                                        {
+                                            var starVal = s;
+                                            <button type="button" class="btn btn-sm @(newReviewRating >= starVal ? "btn-warning" : "btn-outline-secondary") rounded-circle" style="width: 36px; height: 36px;" @onclick="() => newReviewRating = starVal">
+                                                <i class="bi bi-star-fill"></i>
+                                            </button>
+                                        }
+                                        <span class="ms-2 align-self-center fw-bold text-warning">@newReviewRating / 5 sao</span>
+                                    </div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label small fw-semibold">Nhận xét của bạn:</label>
+                                    <textarea class="form-control" rows="3" placeholder="Chia sẻ cảm nhận về form giày, độ êm, độ bền, size..." @bind="newReviewComment"></textarea>
+                                </div>
+
+                                @if (!string.IsNullOrEmpty(reviewFeedbackMessage))
+                                {
+                                    <div class="alert alert-info py-2 small mb-3">@reviewFeedbackMessage</div>
+                                }
+
+                                <button class="btn btn-dark btn-sm rounded-pill px-4 fw-semibold" @onclick="SubmitReview" disabled="@isSubmittingReview">
+                                    @if (isSubmittingReview)
+                                    {
+                                        <span class="spinner-border spinner-border-sm me-1"></span>
+                                    }
+                                    Gửi Đánh Giá
+                                </button>
+                            </div>
+                        }
+
+                        <!-- Customer Reviews List -->
+                        @if (!product.Reviews.Any())
+                        {
+                            <div class="text-center py-4 text-secondary">
+                                <i class="bi bi-chat-square-dots fs-2 mb-2 d-block"></i>
+                                <p class="mb-0">Chưa có đánh giá nào cho sản phẩm này. Hãy là người đầu tiên trải nghiệm và chia sẻ!</p>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="d-flex flex-column gap-3">
+                                @foreach (var rev in product.Reviews.OrderByDescending(r => r.CreatedAt))
+                                {
+                                    <div class="p-3 border rounded-3 bg-white">
+                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                            <div class="d-flex align-items-center gap-2">
+                                                <div class="bg-secondary text-white rounded-circle d-flex align-items-center justify-content-center fw-bold" style="width: 32px; height: 32px; font-size: 0.8rem;">
+                                                    @(rev.Customer?.User?.FullName?.FirstOrDefault() ?? 'U')
+                                                </div>
+                                                <div>
+                                                    <span class="fw-bold small d-block">@(rev.Customer?.User?.FullName ?? "Khách hàng")</span>
+                                                    <span class="text-secondary" style="font-size: 0.725rem;">Đã mua hàng chính hãng · @rev.CreatedAt.ToString("dd/MM/yyyy HH:mm")</span>
+                                                </div>
+                                            </div>
+                                            <div class="star-rating">
+                                                @for (int s = 1; s <= 5; s++)
+                                                {
+                                                    <i class="bi @(s <= rev.Rating ? "bi-star-fill text-warning" : "bi-star text-muted")"></i>
+                                                }
+                                            </div>
+                                        </div>
+                                        <p class="text-dark small mb-0" style="line-height: 1.6;">@rev.Comment</p>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private Product? product;
+    private bool isLoading = true;
+
+    private List<string> availableSizes = new();
+    private List<string> availableColorsForSize = new();
+    private string selectedSize = "";
+    private string selectedColor = "";
+    private ProductVariant? selectedVariant;
+    private int quantity = 1;
+
+    private double averageRating = 5.0;
+    private string activeTab = "desc";
+
+    private bool canReview = false;
+    private byte newReviewRating = 5;
+    private string newReviewComment = "";
+    private bool isSubmittingReview = false;
+    private string? reviewFeedbackMessage;
+
+    private bool isAddingToCart = false;
+    private string? feedbackMessage;
+    private bool feedbackSuccess = false;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await LoadProduct();
+    }
+
+    private async Task LoadProduct()
+    {
+        isLoading = true;
+        product = await ProductService.GetProductDetailAsync(Id);
+
+        if (product != null)
+        {
+            availableSizes = product.Variants
+                .Select(v => v.Size)
+                .Distinct()
+                .OrderBy(s => s)
+                .ToList();
+
+            if (availableSizes.Any())
+            {
+                selectedSize = availableSizes.First();
+                UpdateColorsForSize();
+            }
+
+            averageRating = product.Reviews.Any() ? product.Reviews.Average(r => (double)r.Rating) : 5.0;
+
+            if (AuthService.IsAuthenticated && AuthService.IsCustomer && AuthService.CurrentUser != null)
+            {
+                canReview = await ReviewService.CanCustomerReviewProductAsync(AuthService.CurrentUser.UserId, Id);
+            }
+            else
+            {
+                canReview = false;
+            }
+        }
+
+        isLoading = false;
+    }
+
+    private void UpdateColorsForSize()
+    {
+        if (product == null) return;
+
+        availableColorsForSize = product.Variants
+            .Where(v => v.Size == selectedSize)
+            .Select(v => v.Color)
+            .Distinct()
+            .OrderBy(c => c)
+            .ToList();
+
+        if (availableColorsForSize.Any())
+        {
+            selectedColor = availableColorsForSize.First();
+            UpdateSelectedVariant();
+        }
+    }
+
+    private void UpdateSelectedVariant()
+    {
+        if (product == null) return;
+
+        selectedVariant = product.Variants.FirstOrDefault(v => v.Size == selectedSize && v.Color == selectedColor);
+        quantity = 1;
+    }
+
+    private void SetTabDesc() => activeTab = "desc";
+    private void SetTabReviews() => activeTab = "reviews";
+
+    private void SelectSize(string size)
+    {
+        selectedSize = size;
+        UpdateColorsForSize();
+    }
+
+    private void SelectColor(string color)
+    {
+        selectedColor = color;
+        UpdateSelectedVariant();
+    }
+
+    private void IncrementQuantity()
+    {
+        if (selectedVariant != null && quantity < selectedVariant.StockQuantity)
+        {
+            quantity++;
+        }
+    }
+
+    private void DecrementQuantity()
+    {
+        if (quantity > 1)
+        {
+            quantity--;
+        }
+    }
+
+    private async Task HandleAddToCart()
+    {
+        if (!AuthService.IsAuthenticated || !AuthService.IsCustomer || AuthService.CurrentUser == null)
+        {
+            // Yêu cầu đăng nhập
+            Navigation.NavigateTo($"/login?returnUrl=/product/{Id}");
+            return;
+        }
+
+        if (selectedVariant == null)
+        {
+            feedbackSuccess = false;
+            feedbackMessage = "Vui lòng chọn size và màu sắc hợp lệ.";
+            return;
+        }
+
+        isAddingToCart = true;
+        var res = await CartService.AddToCartAsync(AuthService.CurrentUser.UserId, selectedVariant.VariantId, quantity);
+        isAddingToCart = false;
+
+        feedbackSuccess = res.Success;
+        feedbackMessage = res.Message;
+    }
+
+    private async Task SubmitReview()
+    {
+        if (!AuthService.IsAuthenticated || !AuthService.IsCustomer || AuthService.CurrentUser == null)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        isSubmittingReview = true;
+        var res = await ReviewService.AddReviewAsync(AuthService.CurrentUser.UserId, Id, newReviewRating, newReviewComment);
+        isSubmittingReview = false;
+
+        if (res.Success)
+        {
+            reviewFeedbackMessage = null;
+            newReviewComment = "";
+            canReview = false;
+            await LoadProduct();
+            activeTab = "reviews";
+        }
+        else
+        {
+            reviewFeedbackMessage = res.Message;
+        }
+    }
+}
+

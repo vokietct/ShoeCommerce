@@ -1,0 +1,306 @@
+@page "/admin/promotions"
+@layout Layout.AdminLayout
+@inject IPromotionService PromotionService
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+
+<div class="mb-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+        <div>
+            <h4 class="fw-bold text-dark mb-1">
+                <i class="bi bi-ticket-perforated me-2 text-primary"></i> Quản Lý Khuyến Mãi (Màn hình 29)
+            </h4>
+            <p class="text-secondary small mb-0">Tạo mã giảm giá cố định, thiết lập giá trị đơn hàng tối thiểu và thời hạn áp dụng</p>
+        </div>
+
+        @if (AuthService.IsAdmin)
+        {
+            <button class="btn btn-dark btn-sm rounded-pill px-3 shadow-sm" @onclick="OpenAddModal">
+                <i class="bi bi-plus-lg me-1"></i> Tạo Mã Khuyến Mãi
+            </button>
+        }
+    </div>
+</div>
+
+@if (!AuthService.IsAdmin)
+{
+    <div class="alert alert-danger py-4 text-center">
+        <i class="bi bi-shield-x fs-2 d-block mb-2"></i>
+        Bạn không có quyền truy cập trang này. Chức năng quản lý khuyến mãi chỉ dành riêng cho Quản lý (Admin).
+    </div>
+}
+else
+{
+    @if (!string.IsNullOrEmpty(alertMessage))
+    {
+        <div class="alert @(alertSuccess ? "alert-success" : "alert-warning") alert-dismissible fade show rounded-3 small mb-4" role="alert">
+            @alertMessage
+            <button type="button" class="btn-close" @onclick="() => alertMessage = null"></button>
+        </div>
+    }
+
+    <!-- Search Bar -->
+    <div class="bg-white rounded-4 border p-3 mb-4 shadow-sm" style="max-width: 450px;">
+        <div class="input-group input-group-sm">
+            <span class="input-group-text bg-light text-secondary"><i class="bi bi-search"></i></span>
+            <input type="text" class="form-control" placeholder="Tìm theo mã khuyến mãi..." @bind="searchTerm" @bind:event="oninput" @onkeydown="HandleKeyDown" />
+            <button class="btn btn-dark" @onclick="LoadPromotions">Tìm</button>
+        </div>
+    </div>
+
+    <!-- Table -->
+    <div class="table-custom shadow-sm mb-4">
+        @if (isLoading)
+        {
+            <div class="text-center py-5">
+                <div class="spinner-border text-primary" role="status"></div>
+                <p class="text-muted mt-2">Đang tải mã khuyến mãi...</p>
+            </div>
+        }
+        else if (promotions == null || !promotions.Any())
+        {
+            <div class="text-center py-5 text-secondary">
+                Không tìm thấy mã khuyến mãi nào.
+            </div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table align-middle">
+                    <thead>
+                        <tr>
+                            <th>Mã Khuyến Mãi</th>
+                            <th class="text-end">Số Tiền Giảm</th>
+                            <th class="text-end">Đơn Tối Thiểu</th>
+                            <th>Ngày Bắt Đầu</th>
+                            <th>Ngày Kết Thúc</th>
+                            <th class="text-center">Số Đơn Đã Dùng</th>
+                            <th>Trạng Thái</th>
+                            <th class="text-end" style="width: 160px;">Thao Tác</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var p in promotions)
+                        {
+                            var isExpired = DateTime.Now > p.EndDate;
+                            <tr>
+                                <td class="fw-bold font-monospace text-primary fs-6">
+                                    <span class="p-1 px-2 bg-light border rounded">@p.PromoCode</span>
+                                </td>
+                                <td class="text-end fw-bold text-success">
+                                    -@p.DiscountAmount.ToString("N0") ₫
+                                </td>
+                                <td class="text-end small">
+                                    @(p.MinOrderValue > 0 ? p.MinOrderValue.ToString("N0") + " ₫" : "Không giới hạn")
+                                </td>
+                                <td class="small text-secondary">@p.StartDate.ToString("dd/MM/yyyy")</td>
+                                <td class="small @(isExpired ? "text-danger fw-bold" : "text-secondary")">
+                                    @p.EndDate.ToString("dd/MM/yyyy")
+                                    @if (isExpired)
+                                    {
+                                        <span class="badge bg-danger ms-1" style="font-size: 0.65rem;">Hết hạn</span>
+                                    }
+                                </td>
+                                <td class="text-center">
+                                    <span class="badge bg-light text-primary border">@p.Orders.Count đơn</span>
+                                </td>
+                                <td>
+                                    @if (p.IsActive && !isExpired)
+                                    {
+                                        <span class="status-badge completed">Đang áp dụng</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="status-badge cancelled">Ngừng áp dụng</span>
+                                    }
+                                </td>
+                                <td class="text-end">
+                                    <div class="btn-group btn-group-sm">
+                                        <button class="btn btn-outline-secondary" title="Sửa mã khuyến mãi" @onclick="() => OpenEditModal(p)">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <button class="btn btn-outline-warning" title="Bật / Tắt trạng thái" @onclick="() => ToggleStatus(p.PromotionId)">
+                                            <i class="bi bi-power"></i>
+                                        </button>
+                                        <button class="btn btn-outline-danger" title="Xóa mã" @onclick="() => DeletePromotion(p.PromotionId)">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+}
+
+<!-- Modal Thêm / Sửa Khuyến Mãi -->
+@if (showModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content rounded-4 border-0">
+                <div class="modal-header border-bottom">
+                    <h5 class="modal-title fw-bold">@(isEditing ? "Chỉnh Sửa Mã Khuyến Mãi" : "Tạo Mã Khuyến Mãi Mới")</h5>
+                    <button type="button" class="btn-close" @onclick="() => showModal = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Mã khuyến mãi <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control font-monospace text-uppercase" placeholder="Ví dụ: CHAO100, TET2026..." @bind="formCode" />
+                        <span class="text-muted" style="font-size: 0.725rem;">Mã viết liền không dấu, không trùng lặp</span>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-6">
+                            <label class="form-label small fw-semibold">Số tiền giảm cố định (₫) <span class="text-danger">*</span></label>
+                            <input type="number" class="form-control" @bind="formDiscount" />
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small fw-semibold">Đơn hàng tối thiểu (₫)</label>
+                            <input type="number" class="form-control" @bind="formMinOrder" />
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-6">
+                            <label class="form-label small fw-semibold">Ngày bắt đầu <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" @bind="formStartDate" />
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small fw-semibold">Ngày kết thúc <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" @bind="formEndDate" />
+                        </div>
+                    </div>
+
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="chkActivePromo" @bind="formIsActive" />
+                        <label class="form-check-label small" for="chkActivePromo">Kích hoạt mã áp dụng ngay</label>
+                    </div>
+                </div>
+                <div class="modal-footer border-top">
+                    <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill px-3" @onclick="() => showModal = false">Hủy</button>
+                    <button type="button" class="btn btn-dark btn-sm rounded-pill px-4" @onclick="SavePromotion">Lưu Khuyến Mãi</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<Promotion>? promotions;
+    private bool isLoading = true;
+    private string searchTerm = "";
+
+    private string? alertMessage;
+    private bool alertSuccess = true;
+
+    private bool showModal = false;
+    private bool isEditing = false;
+    private int currentEditId = 0;
+
+    private string formCode = "";
+    private decimal formDiscount = 100000;
+    private decimal formMinOrder = 1500000;
+    private DateTime formStartDate = DateTime.Today;
+    private DateTime formEndDate = DateTime.Today.AddMonths(3);
+    private bool formIsActive = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadPromotions();
+    }
+
+    private async Task LoadPromotions()
+    {
+        if (AuthService.IsAdmin)
+        {
+            isLoading = true;
+            promotions = await PromotionService.GetAllPromotionsAsync(searchTerm);
+            isLoading = false;
+        }
+    }
+
+    private void HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            LoadPromotions();
+        }
+    }
+
+    private void OpenAddModal()
+    {
+        isEditing = false;
+        currentEditId = 0;
+        formCode = "";
+        formDiscount = 100000;
+        formMinOrder = 1000000;
+        formStartDate = DateTime.Today;
+        formEndDate = DateTime.Today.AddMonths(3);
+        formIsActive = true;
+        showModal = true;
+    }
+
+    private void OpenEditModal(Promotion p)
+    {
+        isEditing = true;
+        currentEditId = p.PromotionId;
+        formCode = p.PromoCode;
+        formDiscount = p.DiscountAmount;
+        formMinOrder = p.MinOrderValue;
+        formStartDate = p.StartDate;
+        formEndDate = p.EndDate;
+        formIsActive = p.IsActive;
+        showModal = true;
+    }
+
+    private async Task SavePromotion()
+    {
+        var promo = new Promotion
+        {
+            PromotionId = currentEditId,
+            PromoCode = formCode,
+            DiscountAmount = formDiscount,
+            MinOrderValue = formMinOrder,
+            StartDate = formStartDate,
+            EndDate = formEndDate,
+            IsActive = formIsActive
+        };
+
+        if (isEditing)
+        {
+            var res = await PromotionService.UpdatePromotionAsync(promo);
+            alertSuccess = res.Success;
+            alertMessage = res.Message;
+        }
+        else
+        {
+            var res = await PromotionService.CreatePromotionAsync(promo);
+            alertSuccess = res.Success;
+            alertMessage = res.Message;
+        }
+
+        showModal = false;
+        await LoadPromotions();
+    }
+
+    private async Task ToggleStatus(int id)
+    {
+        var res = await PromotionService.TogglePromotionStatusAsync(id);
+        alertSuccess = res.Success;
+        alertMessage = res.Message;
+        await LoadPromotions();
+    }
+
+    private async Task DeletePromotion(int id)
+    {
+        var res = await PromotionService.DeletePromotionAsync(id);
+        alertSuccess = res.Success;
+        alertMessage = res.Message;
+        await LoadPromotions();
+    }
+}
+

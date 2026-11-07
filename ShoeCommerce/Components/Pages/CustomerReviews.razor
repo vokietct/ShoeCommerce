@@ -1,0 +1,234 @@
+@page "/my-reviews"
+@inject IReviewService ReviewService
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+
+<div class="container py-4" style="max-width: 900px;">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb small">
+            <li class="breadcrumb-item"><a href="/" class="text-decoration-none">Trang chủ</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Đánh giá của tôi</li>
+        </ol>
+    </nav>
+
+    <h3 class="fw-bold text-dark mb-4">
+        <i class="bi bi-star me-2 text-warning"></i> Đánh Giá Của Tôi
+    </h3>
+
+    @if (!AuthService.IsAuthenticated || !AuthService.IsCustomer)
+    {
+        <div class="bg-white rounded-4 border p-5 text-center my-4">
+            <i class="bi bi-person-lock fs-1 text-secondary mb-3 d-block"></i>
+            <h5 class="fw-bold">Vui lòng đăng nhập</h5>
+            <a href="/login" class="btn btn-dark rounded-pill px-4 mt-2">Đăng Nhập</a>
+        </div>
+    }
+    else if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="text-muted mt-2">Đang tải đánh giá...</p>
+        </div>
+    }
+    else
+    {
+        @if (!string.IsNullOrEmpty(feedbackMessage))
+        {
+            <div class="alert @(feedbackSuccess ? "alert-success" : "alert-danger") alert-dismissible fade show rounded-3 small mb-4">
+                @feedbackMessage
+                <button type="button" class="btn-close" @onclick="() => feedbackMessage = null"></button>
+            </div>
+        }
+
+        @if (myReviews == null || !myReviews.Any())
+        {
+            <div class="bg-white rounded-4 border p-5 text-center my-4">
+                <i class="bi bi-chat-heart fs-1 text-secondary mb-3 d-block"></i>
+                <h5 class="fw-bold">Bạn chưa có đánh giá nào</h5>
+                <p class="text-secondary small">Sau khi nhận hàng thành công, bạn có thể đánh giá và chia sẻ trải nghiệm về sản phẩm nhé!</p>
+                <a href="/orders" class="btn btn-dark rounded-pill px-4 mt-2">Xem đơn hàng của tôi</a>
+            </div>
+        }
+        else
+        {
+            <div class="d-flex flex-column gap-3">
+                @foreach (var rev in myReviews)
+                {
+                    <div class="bg-white rounded-4 border p-4 shadow-sm">
+                        <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 border-bottom pb-3 mb-3">
+                            <div class="d-flex align-items-center gap-3">
+                                <img src="@(rev.ProductThumbnail ?? "/images/products/nike_air_force_1.png")"
+                                     alt="@rev.ProductName"
+                                     style="width: 55px; height: 55px; object-fit: contain; border-radius: 0.35rem; background: #f8fafc;" />
+                                <div>
+                                    <a href="/product/@rev.ProductId" class="fw-bold text-dark text-decoration-none d-block">
+                                        @rev.ProductName
+                                    </a>
+                                    <div class="star-rating small">
+                                        @for (int s = 1; s <= 5; s++)
+                                        {
+                                            <i class="bi @(s <= rev.Rating ? "bi-star-fill text-warning" : "bi-star text-muted")"></i>
+                                        }
+                                        <span class="text-secondary ms-2" style="font-size: 0.75rem;">Đã đánh giá lúc @rev.CreatedAt.ToString("dd/MM/yyyy HH:mm")</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-sm btn-outline-secondary rounded-pill px-3" @onclick="() => OpenEditModal(rev)">
+                                    <i class="bi bi-pencil me-1"></i> Sửa
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger rounded-pill px-3" @onclick="() => OpenDeleteModal(rev)">
+                                    <i class="bi bi-trash me-1"></i> Xóa
+                                </button>
+                            </div>
+                        </div>
+
+                        <p class="text-dark small mb-0" style="line-height: 1.6;">
+                            @rev.Comment
+                        </p>
+                    </div>
+                }
+            </div>
+        }
+    }
+</div>
+
+<!-- Modal 34: Chỉnh Sửa Đánh Giá -->
+@if (showEditModal && currentReview != null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content rounded-4 border-0">
+                <div class="modal-header border-bottom">
+                    <h5 class="modal-title fw-bold">Chỉnh Sửa Đánh Giá Sản Phẩm</h5>
+                    <button type="button" class="btn-close" @onclick="() => showEditModal = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="fw-semibold small text-primary mb-3">@currentReview.ProductName</div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Số sao đánh giá:</label>
+                        <div class="d-flex gap-2">
+                            @for (byte s = 1; s <= 5; s++)
+                            {
+                                var starVal = s;
+                                <button type="button" class="btn btn-sm @(editRating >= starVal ? "btn-warning" : "btn-outline-secondary") rounded-circle" style="width: 36px; height: 36px;" @onclick="() => editRating = starVal">
+                                    <i class="bi bi-star-fill"></i>
+                                </button>
+                            }
+                            <span class="ms-2 align-self-center fw-bold text-warning">@editRating / 5 sao</span>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Nội dung nhận xét:</label>
+                        <textarea class="form-control" rows="4" @bind="editComment"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer border-top">
+                    <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill px-3" @onclick="() => showEditModal = false">Hủy</button>
+                    <button type="button" class="btn btn-dark btn-sm rounded-pill px-4" @onclick="SaveEditReview">
+                        Cập Nhật Đánh Giá
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Modal 35: Xác Nhận Xóa Đánh Giá -->
+@if (showDeleteModal && currentReview != null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content rounded-4 border-0">
+                <div class="modal-header border-bottom">
+                    <h5 class="modal-title fw-bold text-danger">
+                        <i class="bi bi-exclamation-triangle me-1"></i> Xác Nhận Xóa Đánh Giá
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="() => showDeleteModal = false"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="small text-secondary mb-2">
+                        Bạn có chắc chắn muốn xóa bài đánh giá cho sản phẩm <strong>@currentReview.ProductName</strong>?
+                    </p>
+                    <div class="p-3 bg-light rounded-3 small text-dark fst-italic">
+                        "@currentReview.Comment"
+                    </div>
+                </div>
+                <div class="modal-footer border-top">
+                    <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill px-3" @onclick="() => showDeleteModal = false">Không, giữ lại</button>
+                    <button type="button" class="btn btn-danger btn-sm rounded-pill px-4" @onclick="ConfirmDeleteReview">
+                        Xác Nhận Xóa
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<ReviewViewDto>? myReviews;
+    private bool isLoading = true;
+    private string? feedbackMessage;
+    private bool feedbackSuccess = true;
+
+    private bool showEditModal = false;
+    private bool showDeleteModal = false;
+    private ReviewViewDto? currentReview;
+
+    private byte editRating = 5;
+    private string editComment = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadReviews();
+    }
+
+    private async Task LoadReviews()
+    {
+        if (AuthService.IsAuthenticated && AuthService.IsCustomer && AuthService.CurrentUser != null)
+        {
+            isLoading = true;
+            myReviews = await ReviewService.GetCustomerReviewsAsync(AuthService.CurrentUser.UserId);
+            isLoading = false;
+        }
+    }
+
+    private void OpenEditModal(ReviewViewDto rev)
+    {
+        currentReview = rev;
+        editRating = rev.Rating;
+        editComment = rev.Comment;
+        showEditModal = true;
+    }
+
+    private async Task SaveEditReview()
+    {
+        if (currentReview == null || AuthService.CurrentUser == null) return;
+        var res = await ReviewService.UpdateReviewAsync(currentReview.ReviewId, AuthService.CurrentUser.UserId, editRating, editComment);
+        feedbackSuccess = res.Success;
+        feedbackMessage = res.Message;
+        showEditModal = false;
+        await LoadReviews();
+    }
+
+    private void OpenDeleteModal(ReviewViewDto rev)
+    {
+        currentReview = rev;
+        showDeleteModal = true;
+    }
+
+    private async Task ConfirmDeleteReview()
+    {
+        if (currentReview == null || AuthService.CurrentUser == null) return;
+        var res = await ReviewService.DeleteReviewByCustomerAsync(currentReview.ReviewId, AuthService.CurrentUser.UserId);
+        feedbackSuccess = res.Success;
+        feedbackMessage = res.Message;
+        showDeleteModal = false;
+        await LoadReviews();
+    }
+}
+

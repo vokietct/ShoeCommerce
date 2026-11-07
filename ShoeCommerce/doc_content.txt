@@ -1,0 +1,136 @@
+TÊN ĐỀ TÀI: Xây dựng website quản lý và bán giày. 
+NHÓM ĐĂNG KÝ: 11
+Mô tả: Thực hiện hoàn chỉnh website quản lý và bán giày ShoeStore bằng Blazor Web App trên .NET 8, sử dụng Entity Framework Core để thao tác với cơ sở dữ liệu MySQL. Hệ thống kết hợp phần giao diện Blazor và phần xử lý nghiệp vụ backend trong cùng một ứng dụng; Blazor xử lý request, gọi service nghiệp vụ, truy xuất và cập nhật dữ liệu thông qua Entity Framework Core. Website phục vụ một cửa hàng với một kho chung, gồm ba vai trò: Quản lý (Admin), Nhân viên (Employee) và Khách hàng (Customer). Hệ thống hỗ trợ thanh toán COD và chuyển khoản xác nhận thủ công; không tích hợp cổng thanh toán trực tuyến, không xử lý đổi trả hàng, hoàn tiền và chưa tính phí vận chuyển. Khách hàng có thể đăng ký tài khoản, quản lý địa chỉ giao hàng, tìm kiếm sản phẩm, chọn size/màu, thêm giỏ hàng, đặt hàng, theo dõi đơn hàng và đánh giá sản phẩm. Quản lý và nhân viên sử dụng trang quản trị để quản lý sản phẩm, biến thể giày, tồn kho, đơn hàng, thanh toán, khuyến mãi, nhà cung cấp và thống kê. Hệ thống áp dụng xác thực và phân quyền theo vai trò. Các chức năng quản trị chỉ cho phép Quản lý hoặc Nhân viên truy cập theo quyền được phân công. Các trang giao diện được liên kết với nhau và sử dụng dữ liệu thực từ cơ sở dữ liệu MySQL, tạo thành website quản lý và bán giày hoàn chỉnh.
+Website gồm các chức năng sau:
+  
+Chức năng
+GV đánh giá các chức năng
+I. Các chức năng cho người chủ / quản lý cửa hàng (admin)
+1. Giao diện và tài khoản quản trị:
+Trang đăng nhập riêng cho Quản lý và Nhân viên, không dùng chung giao diện đăng nhập với khách hàng. 
+Đăng nhập bằng tài khoản và mật khẩu; hệ thống kiểm tra quyền trước khi truy cập các chức năng quản trị. 
+Phân quyền trong trang quản trị:
+Quản lý (Admin): sử dụng toàn bộ chức năng quản trị.
+Nhân viên (Employee): tra cứu sản phẩm, tồn kho, khách hàng; xử lý đơn hàng và xác nhận thanh toán.
+Chỉ Quản lý được thêm / sửa / xóa dữ liệu khách hàng, danh mục, thương hiệu, sản phẩm, nhà cung cấp và khuyến mãi; xóa đánh giá không phù hợp; lập và xác nhận phiếu điều chỉnh kho. 
+Nhân viên chỉ được tra cứu, xử lý đơn hàng và xác nhận thanh toán theo quyền đã đăng ký. 
+Các mục chỉ dành cho Quản lý được ẩn trên giao diện và kiểm tra quyền truy cập tại tầng service.
+Có menu quản trị và trang tổng quan: doanh thu, đơn mới, đơn chờ xác nhận, khách hàng mới và các biến thể giày sắp hết hàng.
+ 
+2. Quản lý nhân viên (chỉ Quản lý):
+Hiển thị danh sách nhân viên gồm họ tên, email, số điện thoại và trạng thái tài khoản; tìm kiếm theo họ tên hoặc email.
+Thêm nhân viên: tạo tài khoản đăng nhập bằng email, mật khẩu và gán vai trò Nhân viên.
+Sửa thông tin nhân viên; khóa / mở khóa tài khoản.
+Xóa nhân viên chưa có dữ liệu nghiệp vụ liên quan; nhân viên đã xử lý đơn hàng hoặc giao dịch kho chỉ được khóa tài khoản để giữ lịch sử.
+3. Quản lý khách hàng:
+Hiển thị danh sách khách hàng gồm họ tên, email, số điện thoại và trạng thái tài khoản; tìm kiếm theo họ tên, email hoặc số điện thoại.
+Xem chi tiết khách hàng: thông tin cá nhân, danh sách địa chỉ giao hàng và lịch sử đơn hàng.
+Thêm khách hàng kèm tài khoản đăng nhập; sửa thông tin khách hàng.
+Quản lý sổ địa chỉ giao hàng của khách: thêm, sửa, xóa địa chỉ.
+Chỉ Quản lý được khóa / mở khóa tài khoản hoặc xóa khách hàng; không xóa khách hàng đã có đơn hàng.
+4. Quản lý danh mục và thương hiệu: 
+Hiển thị, tìm kiếm, thêm, sửa, xóa danh mục giày như giày thể thao, giày chạy bộ, giày tây, sandal.
+Hiển thị, tìm kiếm, thêm, sửa, xóa thương hiệu giày.
+Không xóa danh mục hoặc thương hiệu đang được sử dụng cho sản phẩm.
+5. Quản lý sản phẩm:
+Hiển thị danh sách sản phẩm có phân trang; tìm kiếm theo tên hoặc mã sản phẩm; lọc theo danh mục, thương hiệu và trạng thái kinh doanh.
+Xem chi tiết sản phẩm và danh sách biến thể tương ứng.
+Thêm sản phẩm gồm mã sản phẩm, tên, danh mục, thương hiệu, nhà cung cấp, mô tả và hình ảnh đại diện.
+Sửa thông tin sản phẩm; khi mở form sửa phải hiển thị đúng dữ liệu hiện tại.
+Quản lý biến thể của sản phẩm: thêm, sửa, xóa; mỗi biến thể gồm mã SKU, size, màu sắc và giá bán.
+Kiểm tra SKU không trùng; không tạo trùng tổ hợp size / màu trong cùng một sản phẩm.
+Thêm hoặc thay đổi hình ảnh đại diện của sản phẩm.
+Ngừng kinh doanh sản phẩm hoặc biến thể; chỉ xóa khi chưa phát sinh dữ liệu liên quan.
+6. Quản lý đánh giá sản phẩm:
+Hiển thị danh sách đánh giá gồm sản phẩm, khách hàng, số sao, nhận xét và ngày đánh giá.
+Tìm kiếm, lọc đánh giá theo sản phẩm hoặc số sao.
+Xem nội dung và xóa đánh giá không phù hợp; chỉ Quản lý được xóa đánh giá.
+7. Quản lý khuyến mãi:
+Hiển thị, tìm kiếm, thêm, sửa, xóa mã khuyến mãi.
+Mỗi mã gồm: mã khuyến mãi, số tiền giảm cố định, giá trị đơn hàng tối thiểu, ngày bắt đầu, ngày kết thúc và trạng thái áp dụng.
+Kiểm tra mã không trùng; số tiền giảm phải lớn hơn 0; ngày kết thúc phải sau ngày bắt đầu.
+Mỗi đơn hàng áp dụng tối đa một mã; số tiền giảm không vượt quá tiền hàng.
+Không xóa mã đã được sử dụng trong đơn hàng; cho phép ngừng áp dụng mã.
+8. Quản lý đơn đặt hàng của khách hàng:
+Hiển thị danh sách đơn hàng có phân trang; tra cứu theo mã đơn, khoảng ngày đặt và trạng thái đơn hàng.
+Xem chi tiết đơn: khách hàng, thông tin người nhận, địa chỉ giao hàng, sản phẩm, size, màu, số lượng, đơn giá lúc đặt, tiền hàng, giảm giá, tổng tiền và thanh toán.
+Cập nhật trạng thái theo trình tự: Chờ xác nhận → Đã xác nhận → Đang giao → Hoàn tất.
+Hủy đơn khi đơn ở trạng thái Chờ xác nhận hoặc Đã xác nhận, đồng thời chưa thanh toán. Với đơn chuyển khoản, Quản lý / Nhân viên phải kiểm tra chưa nhận tiền trước khi hủy. Ghi lý do hủy và tự hoàn kho một lần. Không xử lý hủy đơn đã nhận tiền trong phạm vi đồ án.
+Cho phép sửa thông tin người nhận, số điện thoại, địa chỉ và ghi chú khi đơn còn Chờ xác nhận; không sửa danh sách sản phẩm và số tiền của đơn.
+Lưu lịch sử thay đổi trạng thái gồm trạng thái, thời gian, người thực hiện và ghi chú.
+Không xóa đơn hàng; giữ đơn đã hủy để tra cứu lịch sử.
+9. Quản lý thanh toán:
+Hiển thị thông tin thanh toán của đơn hàng: mã đơn, phương thức, số tiền, trạng thái và thời gian xác nhận.
+Hỗ trợ hai phương thức:
+COD: thanh toán tiền mặt khi nhận hàng.
+Chuyển khoản: khách chuyển khoản theo thông tin cửa hàng; Quản lý / Nhân viên kiểm tra và xác nhận thủ công.
+Tự tạo bản ghi thanh toán ở trạng thái Chưa thanh toán khi đặt hàng thành công.
+Cho phép thay đổi phương thức khi đơn còn Chờ xác nhận và chưa thanh toán.
+Với COD, khi nhân viên xác nhận đã giao hàng và thu tiền, đơn chuyển sang Hoàn tất và thanh toán chuyển sang Đã thanh toán.
+Với chuyển khoản, đơn phải được xác nhận Đã thanh toán trước khi chuyển sang Đang giao.
+Đơn bị hủy khi chưa thanh toán được cập nhật thanh toán thành Đã hủy.
+Không xóa bản ghi thanh toán.
+10. Quản lý nhà cung cấp:
+Hiển thị danh sách nhà cung cấp gồm tên, số điện thoại, email và địa chỉ.
+Tìm kiếm theo tên hoặc số điện thoại; xem chi tiết nhà cung cấp và danh sách sản phẩm liên quan.
+Thêm, sửa thông tin nhà cung cấp.
+Chỉ Quản lý được xóa nhà cung cấp chưa có dữ liệu liên quan; nhà cung cấp đã được sử dụng chỉ được ngừng hợp tác.
+11. Quản lý số lượng tồn của sản phẩm:
+Tra cứu số lượng tồn hiện tại theo mã SKU, sản phẩm, size và màu sắc trong kho chung của cửa hàng.
+Chỉ Quản lý được lập và xác nhận phiếu nhập kho, xuất điều chỉnh và nhập điều chỉnh kho; mỗi phiếu gồm loại phiếu, thời gian, người thực hiện, lý do và các biến thể kèm số lượng.
+Phiếu nhập cho phép chọn nhà cung cấp.
+Phiếu kho lập thủ công ở trạng thái nháp được sửa / xóa; khi xác nhận phiếu, hệ thống cập nhật tồn kho và không cho sửa / xóa hoặc xác nhận lại phiếu đã xác nhận. 
+Tự động trừ kho theo đúng biến thể khi đặt hàng thành công; không cho đặt quá số lượng tồn.
+Tự hoàn kho khi đơn bị hủy hợp lệ; không hoàn kho lặp lại khi thao tác nhiều lần.
+Khi đặt hàng hoặc hủy đơn hợp lệ, hệ thống tự tạo phiếu xuất / nhập kho tương ứng, liên kết với đơn hàng; không cho sửa hoặc xóa các phiếu tự động này.
+Không cho thực hiện phiếu điều chỉnh kho làm tồn kho âm.
+Cảnh báo biến thể có số lượng tồn nhỏ hơn hoặc bằng ngưỡng cảnh báo đã thiết lập.
+12. Thống kê:
+Thống kê doanh thu theo ngày, tháng hoặc khoảng thời gian; chỉ tính đơn Hoàn tất và Đã thanh toán.
+Doanh thu được tính từ tiền hàng sau giảm giá; không tính đơn đã hủy.
+Thống kê số lượng đơn theo trạng thái: Chờ xác nhận, Đã xác nhận, Đang giao, Hoàn tất, Đã hủy.
+Thống kê sản phẩm bán chạy theo số lượng bán từ các đơn Hoàn tất.
+Thống kê các biến thể sắp hết hàng hoặc đã hết hàng.
+Hiển thị kết quả dưới dạng bảng và biểu đồ.
+II. Các chức năng cho khách hàng (end-user)
+1. Quản lý tài khoản:
+Đăng ký tài khoản khách hàng bằng họ tên, email, số điện thoại và mật khẩu; kiểm tra email không trùng; tự tạo giỏ hàng khi đăng ký thành công.
+Đăng nhập / đăng xuất; khi đăng nhập hiển thị thông tin tài khoản đang sử dụng.
+Xem và sửa thông tin cá nhân; đổi mật khẩu.
+Quản lý sổ địa chỉ giao hàng: thêm, sửa, xóa và chọn địa chỉ mặc định.
+Chỉ được xem và cập nhật thông tin thuộc tài khoản của mình.
+2. Hiển thị và tìm kiếm sản phẩm:
+Hiển thị danh sách sản phẩm đang kinh doanh theo danh mục và thương hiệu, có phân trang.
+Hiển thị chi tiết sản phẩm: tên, mô tả, thương hiệu, hình ảnh đại diện, các biến thể size / màu, giá bán, số lượng còn và điểm đánh giá trung bình.
+Chọn size / màu để xem đúng giá và tồn kho của biến thể tương ứng.
+Tìm kiếm cơ bản theo tên; kết hợp lọc theo danh mục, thương hiệu và khoảng giá.
+Trên danh sách, hiển thị giá thấp nhất của các biến thể đang kinh doanh; sắp xếp tăng dần hoặc giảm dần theo mức giá này.
+Khi lọc khoảng giá, hiển thị sản phẩm có ít nhất một biến thể đang kinh doanh có giá nằm trong khoảng đã chọn. Kết quả tìm kiếm có phân trang. 
+Xem các đánh giá của khách hàng về sản phẩm.
+3. Mua sản phẩm bằng giỏ hàng (khách hàng phải đăng ký và đăng nhập):
+Chọn size / màu và số lượng tại trang chi tiết sản phẩm để thêm vào giỏ hàng.
+Kiểm tra biến thể đang kinh doanh và số lượng yêu cầu không vượt tồn kho.
+Xem giỏ hàng gồm sản phẩm, hình ảnh, size, màu, đơn giá, số lượng và thành tiền.
+Cập nhật số lượng, xóa từng sản phẩm hoặc làm trống giỏ hàng.
+Cộng dồn số lượng khi thêm lại cùng một biến thể.
+Hiển thị tổng tiền hàng; giỏ hàng được lưu theo tài khoản khách hàng.
+4. Đặt hàng:
+Chọn địa chỉ nhận hàng trong sổ địa chỉ hoặc nhập thông tin giao hàng mới gồm họ tên, số điện thoại, địa chỉ và ghi chú.
+Chọn phương thức thanh toán: COD mặc định hoặc chuyển khoản xác nhận thủ công.
+Nhập mã khuyến mãi; kiểm tra trạng thái, thời hạn và giá trị đơn tối thiểu; hiển thị số tiền giảm.
+Xem lại sản phẩm, size, màu, số lượng, đơn giá, tiền hàng, giảm giá và tổng thanh toán trước khi xác nhận.
+Khi xác nhận đặt hàng, hệ thống kiểm tra lại giá bán, mã khuyến mãi và tồn kho.
+Nếu hợp lệ: tạo đơn Chờ xác nhận, lưu thông tin giao hàng và đơn giá tại thời điểm đặt, trừ tồn kho, tạo bản ghi thanh toán và làm trống giỏ.
+Nếu không đủ hàng, dữ liệu không hợp lệ hoặc có lỗi trong quá trình xử lý: thông báo lỗi, hoàn tác toàn bộ việc tạo đơn, chi tiết đơn, thanh toán, phiếu kho và cập nhật tồn; giữ nguyên giỏ hàng. 
+Sau khi đặt thành công, hiển thị chi tiết đơn; nếu chọn chuyển khoản, hiển thị thông tin tài khoản nhận tiền và nội dung chuyển khoản theo mã đơn.
+5. Xem lại đơn hàng đã mua:
+Xem danh sách và chi tiết các đơn thuộc tài khoản đang đăng nhập.
+Xem sản phẩm, size, màu, số lượng, đơn giá, số tiền giảm, tổng thanh toán và thông tin giao hàng.
+Theo dõi trạng thái đơn hàng, trạng thái thanh toán và lịch sử thay đổi trạng thái.
+Khách hàng được tự hủy đơn COD khi còn Chờ xác nhận; nhập lý do hủy, hệ thống tự hoàn kho một lần. 
+Với đơn chuyển khoản, khách liên hệ cửa hàng để kiểm tra và xử lý hủy khi chưa nhận tiền. Khách không được tự hủy đơn đã xác nhận, đang giao, hoàn tất hoặc đã thanh toán. 
+6. Đánh giá sản phẩm:
+Chỉ khách hàng đã mua sản phẩm trong đơn Hoàn tất mới được đánh giá.
+Mỗi khách hàng đánh giá mỗi sản phẩm tối đa một lần; đánh giá gồm số sao từ 1 đến 5 và nhận xét văn bản.
+Hiển thị đánh giá và điểm trung bình tại trang chi tiết sản phẩm.
+Khách hàng được sửa hoặc xóa đánh giá của mình.
