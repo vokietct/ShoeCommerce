@@ -1,0 +1,737 @@
+-- =========================================================
+-- SHOESTORE
+-- MySQL 8.0.16+
+-- Một cửa hàng - Một kho chung - 20 bảng
+-- =========================================================
+
+CREATE DATABASE IF NOT EXISTS shoestore_db
+    CHARACTER SET utf8mb4
+    COLLATE utf8mb4_unicode_ci;
+
+USE shoestore_db;
+
+
+-- =========================================================
+-- 1. VAI TRÒ
+-- =========================================================
+
+CREATE TABLE roles (
+    role_id INT AUTO_INCREMENT PRIMARY KEY,
+    role_name VARCHAR(50) NOT NULL,
+
+    CONSTRAINT uq_roles_name UNIQUE (role_name)
+) ENGINE = InnoDB;
+
+
+-- =========================================================
+-- 2. TÀI KHOẢN NGƯỜI DÙNG
+-- Mỗi tài khoản có một vai trò.
+-- =========================================================
+
+CREATE TABLE users (
+    user_id INT AUTO_INCREMENT PRIMARY KEY,
+
+    email VARCHAR(255) NOT NULL,
+    password_hash VARCHAR(500) NOT NULL,
+    full_name VARCHAR(150) NOT NULL,
+    phone VARCHAR(20) NOT NULL,
+
+    role_id INT NOT NULL,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT uq_users_email UNIQUE (email),
+
+    CONSTRAINT fk_users_role
+        FOREIGN KEY (role_id)
+        REFERENCES roles(role_id)
+        ON DELETE RESTRICT,
+
+    INDEX ix_users_full_name (full_name),
+    INDEX ix_users_phone (phone)
+) ENGINE = InnoDB;
+
+
+-- =========================================================
+-- 3. NHÂN VIÊN / QUẢN LÝ
+-- employee_id đồng thời là users.user_id.
+-- =========================================================
+
+CREATE TABLE employees (
+    employee_id INT PRIMARY KEY,
+    hire_date DATE NULL,
+
+    CONSTRAINT fk_employees_user
+        FOREIGN KEY (employee_id)
+        REFERENCES users(user_id)
+        ON DELETE CASCADE
+) ENGINE = InnoDB;
+
+
+-- =========================================================
+-- 4. KHÁCH HÀNG
+-- customer_id đồng thời là users.user_id.
+-- =========================================================
+
+CREATE TABLE customers (
+    customer_id INT PRIMARY KEY,
+
+    CONSTRAINT fk_customers_user
+        FOREIGN KEY (customer_id)
+        REFERENCES users(user_id)
+        ON DELETE CASCADE
+) ENGINE = InnoDB;
+
+
+-- =========================================================
+-- 5. SỔ ĐỊA CHỈ KHÁCH HÀNG
+-- default_customer_id:
+--   - Có giá trị customer_id nếu là địa chỉ mặc định.
+--   - NULL nếu không phải mặc định.
+-- UNIQUE đảm bảo tối đa một địa chỉ mặc định mỗi khách.
+-- =========================================================
+
+CREATE TABLE customer_addresses (
+    address_id INT AUTO_INCREMENT PRIMARY KEY,
+    customer_id INT NOT NULL,
+
+    receiver_name VARCHAR(150) NOT NULL,
+    phone VARCHAR(20) NOT NULL,
+    address_line VARCHAR(1000) NOT NULL,
+
+    is_default BOOLEAN NOT NULL DEFAULT FALSE,
+
+    default_customer_id INT
+        GENERATED ALWAYS AS (
+            CASE
+                WHEN is_default = TRUE THEN customer_id
+                ELSE NULL
+            END
+        ) STORED,
+
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT uq_customer_default_address
+        UNIQUE (default_customer_id),
+
+    CONSTRAINT fk_addresses_customer
+        FOREIGN KEY (customer_id)
+        REFERENCES customers(customer_id)
+        ON DELETE CASCADE
+) ENGINE = InnoDB;
+
+
+-- =========================================================
+-- 6. DANH MỤC
+-- =========================================================
+
+CREATE TABLE categories (
+    category_id INT AUTO_INCREMENT PRIMARY KEY,
+    category_name VARCHAR(150) NOT NULL,
+    description TEXT NULL,
+
+    CONSTRAINT uq_categories_name UNIQUE (category_name)
+) ENGINE = InnoDB;
+
+
+-- =========================================================
+-- 7. THƯƠNG HIỆU
+-- =========================================================
+
+CREATE TABLE brands (
+    brand_id INT AUTO_INCREMENT PRIMARY KEY,
+    brand_name VARCHAR(150) NOT NULL,
+    description TEXT NULL,
+
+    CONSTRAINT uq_brands_name UNIQUE (brand_name)
+) ENGINE = InnoDB;
+
+
+-- =========================================================
+-- 8. NHÀ CUNG CẤP
+-- =========================================================
+
+CREATE TABLE suppliers (
+    supplier_id INT AUTO_INCREMENT PRIMARY KEY,
+
+    supplier_name VARCHAR(200) NOT NULL,
+    phone VARCHAR(20) NULL,
+    email VARCHAR(255) NULL,
+    address VARCHAR(1000) NULL,
+
+    is_cooperating BOOLEAN NOT NULL DEFAULT TRUE,
+
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    INDEX ix_suppliers_name (supplier_name),
+    INDEX ix_suppliers_phone (phone)
+) ENGINE = InnoDB;
+
+
+-- =========================================================
+-- 9. SẢN PHẨM
+-- Mỗi sản phẩm có một ảnh đại diện.
+-- =========================================================
+
+CREATE TABLE products (
+    product_id INT AUTO_INCREMENT PRIMARY KEY,
+
+    product_code VARCHAR(50) NOT NULL,
+    product_name VARCHAR(200) NOT NULL,
+
+    category_id INT NOT NULL,
+    brand_id INT NOT NULL,
+    supplier_id INT NOT NULL,
+
+    description TEXT NULL,
+    thumbnail_url VARCHAR(500) NULL,
+
+    status ENUM('Selling', 'Discontinued')
+        NOT NULL DEFAULT 'Selling',
+
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT uq_products_code UNIQUE (product_code),
+
+    CONSTRAINT fk_products_category
+        FOREIGN KEY (category_id)
+        REFERENCES categories(category_id)
+        ON DELETE RESTRICT,
+
+    CONSTRAINT fk_products_brand
+        FOREIGN KEY (brand_id)
+        REFERENCES brands(brand_id)
+        ON DELETE RESTRICT,
+
+    CONSTRAINT fk_products_supplier
+        FOREIGN KEY (supplier_id)
+        REFERENCES suppliers(supplier_id)
+        ON DELETE RESTRICT,
+
+    INDEX ix_products_name (product_name),
+    INDEX ix_products_status (status)
+) ENGINE = InnoDB;
+
+
+-- =========================================================
+-- 10. BIẾN THỂ VÀ TỒN KHO
+-- Tồn kho được quản lý trực tiếp theo SKU / size / màu.
+-- =========================================================
+
+CREATE TABLE product_variants (
+    variant_id INT AUTO_INCREMENT PRIMARY KEY,
+    product_id INT NOT NULL,
+
+    sku VARCHAR(100) NOT NULL,
+    size VARCHAR(20) NOT NULL,
+    color VARCHAR(50) NOT NULL,
+
+    price DECIMAL(15,2) NOT NULL,
+
+    stock_quantity INT NOT NULL DEFAULT 0,
+    low_stock_threshold INT NOT NULL DEFAULT 5,
+
+    status ENUM('Selling', 'Discontinued')
+        NOT NULL DEFAULT 'Selling',
+
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT uq_variants_sku UNIQUE (sku),
+
+    CONSTRAINT uq_variants_product_size_color
+        UNIQUE (product_id, size, color),
+
+    CONSTRAINT chk_variants_price
+        CHECK (price >= 0),
+
+    CONSTRAINT chk_variants_stock
+        CHECK (stock_quantity >= 0),
+
+    CONSTRAINT chk_variants_threshold
+        CHECK (low_stock_threshold >= 0),
+
+    CONSTRAINT fk_variants_product
+        FOREIGN KEY (product_id)
+        REFERENCES products(product_id)
+        ON DELETE RESTRICT,
+
+    INDEX ix_variants_status_price (status, price)
+) ENGINE = InnoDB;
+
+
+-- =========================================================
+-- 11. MÃ KHUYẾN MÃI
+-- Giảm số tiền cố định, không giảm theo phần trăm.
+-- =========================================================
+
+CREATE TABLE promotions (
+    promotion_id INT AUTO_INCREMENT PRIMARY KEY,
+
+    promo_code VARCHAR(50) NOT NULL,
+    discount_amount DECIMAL(15,2) NOT NULL,
+    min_order_value DECIMAL(15,2) NOT NULL DEFAULT 0.00,
+
+    start_date DATETIME NOT NULL,
+    end_date DATETIME NOT NULL,
+
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT uq_promotions_code UNIQUE (promo_code),
+
+    CONSTRAINT chk_promotions_discount
+        CHECK (discount_amount > 0),
+
+    CONSTRAINT chk_promotions_min_order
+        CHECK (min_order_value >= 0),
+
+    CONSTRAINT chk_promotions_dates
+        CHECK (end_date > start_date)
+) ENGINE = InnoDB;
+
+
+-- =========================================================
+-- 12. GIỎ HÀNG
+-- Mỗi khách có tối đa một giỏ hàng.
+-- Service tạo giỏ khi đăng ký khách thành công.
+-- =========================================================
+
+CREATE TABLE carts (
+    cart_id INT AUTO_INCREMENT PRIMARY KEY,
+    customer_id INT NOT NULL,
+
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT uq_carts_customer UNIQUE (customer_id),
+
+    CONSTRAINT fk_carts_customer
+        FOREIGN KEY (customer_id)
+        REFERENCES customers(customer_id)
+        ON DELETE CASCADE
+) ENGINE = InnoDB;
+
+
+-- =========================================================
+-- 13. CHI TIẾT GIỎ HÀNG
+-- Không lưu giá cố định; giá hiện hành đọc từ biến thể.
+-- =========================================================
+
+CREATE TABLE cart_items (
+    cart_item_id INT AUTO_INCREMENT PRIMARY KEY,
+
+    cart_id INT NOT NULL,
+    variant_id INT NOT NULL,
+
+    quantity INT NOT NULL,
+
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT uq_cart_items_variant
+        UNIQUE (cart_id, variant_id),
+
+    CONSTRAINT chk_cart_items_quantity
+        CHECK (quantity > 0),
+
+    CONSTRAINT fk_cart_items_cart
+        FOREIGN KEY (cart_id)
+        REFERENCES carts(cart_id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT fk_cart_items_variant
+        FOREIGN KEY (variant_id)
+        REFERENCES product_variants(variant_id)
+        ON DELETE RESTRICT
+) ENGINE = InnoDB;
+
+
+-- =========================================================
+-- 14. ĐƠN HÀNG
+-- total_amount: tiền hàng trước giảm giá.
+-- discount_amount: tiền giảm thực tế.
+-- final_amount: tiền phải thanh toán, tự tính.
+-- =========================================================
+
+CREATE TABLE orders (
+    order_id INT AUTO_INCREMENT PRIMARY KEY,
+
+    order_code VARCHAR(50) NOT NULL,
+    customer_id INT NOT NULL,
+    promotion_id INT NULL,
+
+    receiver_name VARCHAR(150) NOT NULL,
+    phone VARCHAR(20) NOT NULL,
+    shipping_address VARCHAR(1000) NOT NULL,
+
+    total_amount DECIMAL(15,2) NOT NULL,
+    discount_amount DECIMAL(15,2) NOT NULL DEFAULT 0.00,
+
+    final_amount DECIMAL(15,2)
+        GENERATED ALWAYS AS (
+            total_amount - discount_amount
+        ) STORED,
+
+    promo_code_snapshot VARCHAR(50) NULL,
+
+    order_status ENUM(
+        'Pending',
+        'Confirmed',
+        'Shipping',
+        'Completed',
+        'Cancelled'
+    ) NOT NULL DEFAULT 'Pending',
+
+    note TEXT NULL,
+
+    cancel_reason TEXT NULL,
+    cancelled_by_user_id INT NULL,
+    cancelled_at DATETIME NULL,
+    completed_at DATETIME NULL,
+
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT uq_orders_code UNIQUE (order_code),
+
+    CONSTRAINT chk_orders_amounts CHECK (
+        total_amount >= 0
+        AND discount_amount >= 0
+        AND discount_amount <= total_amount
+    ),
+
+    CONSTRAINT fk_orders_customer
+        FOREIGN KEY (customer_id)
+        REFERENCES customers(customer_id)
+        ON DELETE RESTRICT,
+
+    CONSTRAINT fk_orders_promotion
+        FOREIGN KEY (promotion_id)
+        REFERENCES promotions(promotion_id)
+        ON DELETE RESTRICT,
+
+    CONSTRAINT fk_orders_cancelled_by
+        FOREIGN KEY (cancelled_by_user_id)
+        REFERENCES users(user_id)
+        ON DELETE RESTRICT,
+
+    INDEX ix_orders_customer_date (customer_id, created_at),
+    INDEX ix_orders_status_date (order_status, created_at),
+    INDEX ix_orders_completed_at (completed_at)
+) ENGINE = InnoDB;
+
+
+-- =========================================================
+-- 15. CHI TIẾT ĐƠN HÀNG
+-- Snapshot giữ thông tin tại thời điểm đặt.
+-- =========================================================
+
+CREATE TABLE order_details (
+    order_detail_id INT AUTO_INCREMENT PRIMARY KEY,
+
+    order_id INT NOT NULL,
+    variant_id INT NOT NULL,
+
+    product_name_snapshot VARCHAR(200) NOT NULL,
+    sku_snapshot VARCHAR(100) NOT NULL,
+    size_snapshot VARCHAR(20) NOT NULL,
+    color_snapshot VARCHAR(50) NOT NULL,
+
+    quantity INT NOT NULL,
+    unit_price DECIMAL(15,2) NOT NULL,
+
+    line_total DECIMAL(25,2)
+        GENERATED ALWAYS AS (
+            quantity * unit_price
+        ) STORED,
+
+    CONSTRAINT uq_order_details_variant
+        UNIQUE (order_id, variant_id),
+
+    CONSTRAINT chk_order_details_quantity
+        CHECK (quantity > 0),
+
+    CONSTRAINT chk_order_details_price
+        CHECK (unit_price >= 0),
+
+    CONSTRAINT fk_order_details_order
+        FOREIGN KEY (order_id)
+        REFERENCES orders(order_id)
+        ON DELETE RESTRICT,
+
+    CONSTRAINT fk_order_details_variant
+        FOREIGN KEY (variant_id)
+        REFERENCES product_variants(variant_id)
+        ON DELETE RESTRICT
+) ENGINE = InnoDB;
+
+
+-- =========================================================
+-- 16. LỊCH SỬ TRẠNG THÁI ĐƠN HÀNG
+-- previous_status NULL cho lần tạo đơn đầu tiên.
+-- =========================================================
+
+CREATE TABLE order_status_history (
+    history_id INT AUTO_INCREMENT PRIMARY KEY,
+    order_id INT NOT NULL,
+
+    previous_status ENUM(
+        'Pending',
+        'Confirmed',
+        'Shipping',
+        'Completed',
+        'Cancelled'
+    ) NULL,
+
+    new_status ENUM(
+        'Pending',
+        'Confirmed',
+        'Shipping',
+        'Completed',
+        'Cancelled'
+    ) NOT NULL,
+
+    changed_by_user_id INT NOT NULL,
+    note TEXT NULL,
+
+    changed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_order_history_order
+        FOREIGN KEY (order_id)
+        REFERENCES orders(order_id)
+        ON DELETE RESTRICT,
+
+    CONSTRAINT fk_order_history_user
+        FOREIGN KEY (changed_by_user_id)
+        REFERENCES users(user_id)
+        ON DELETE RESTRICT,
+
+    INDEX ix_order_history_order_time (order_id, changed_at)
+) ENGINE = InnoDB;
+
+
+-- =========================================================
+-- 17. THANH TOÁN
+-- Mỗi đơn có tối đa một bản ghi thanh toán.
+-- Service tạo bản ghi ngay khi đặt hàng thành công.
+-- =========================================================
+
+CREATE TABLE payments (
+    payment_id INT AUTO_INCREMENT PRIMARY KEY,
+    order_id INT NOT NULL,
+
+    payment_method ENUM('COD', 'BankTransfer')
+        NOT NULL DEFAULT 'COD',
+
+    amount DECIMAL(15,2) NOT NULL,
+
+    payment_status ENUM('Unpaid', 'Paid', 'Cancelled')
+        NOT NULL DEFAULT 'Unpaid',
+
+    transfer_reference VARCHAR(100) NULL,
+
+    confirmed_by_user_id INT NULL,
+    confirmed_at DATETIME NULL,
+
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT uq_payments_order UNIQUE (order_id),
+
+    CONSTRAINT chk_payments_amount
+        CHECK (amount >= 0),
+
+    CONSTRAINT fk_payments_order
+        FOREIGN KEY (order_id)
+        REFERENCES orders(order_id)
+        ON DELETE RESTRICT,
+
+    CONSTRAINT fk_payments_confirmed_by
+        FOREIGN KEY (confirmed_by_user_id)
+        REFERENCES users(user_id)
+        ON DELETE RESTRICT,
+
+    INDEX ix_payments_status (payment_status)
+) ENGINE = InnoDB;
+
+
+-- =========================================================
+-- 18. ĐÁNH GIÁ SẢN PHẨM
+-- Mỗi khách có tối đa một đánh giá mỗi sản phẩm.
+-- Điều kiện đã mua được kiểm tra ở service.
+-- =========================================================
+
+CREATE TABLE product_reviews (
+    review_id INT AUTO_INCREMENT PRIMARY KEY,
+
+    product_id INT NOT NULL,
+    customer_id INT NOT NULL,
+
+    rating TINYINT NOT NULL,
+    comment TEXT NOT NULL,
+
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT uq_reviews_customer_product
+        UNIQUE (product_id, customer_id),
+
+    CONSTRAINT chk_reviews_rating
+        CHECK (rating BETWEEN 1 AND 5),
+
+    CONSTRAINT chk_reviews_comment
+        CHECK (CHAR_LENGTH(TRIM(comment)) > 0),
+
+    CONSTRAINT fk_reviews_product
+        FOREIGN KEY (product_id)
+        REFERENCES products(product_id)
+        ON DELETE RESTRICT,
+
+    CONSTRAINT fk_reviews_customer
+        FOREIGN KEY (customer_id)
+        REFERENCES customers(customer_id)
+        ON DELETE RESTRICT,
+
+    INDEX ix_reviews_product_rating (product_id, rating)
+) ENGINE = InnoDB;
+
+
+-- =========================================================
+-- 19. PHIẾU KHO
+--
+-- PurchaseReceipt: nhập hàng từ nhà cung cấp.
+-- AdjustmentIn: nhập điều chỉnh.
+-- AdjustmentOut: xuất điều chỉnh.
+-- OrderIssue: xuất tự động khi đặt hàng.
+-- OrderCancellationReceipt: nhập tự động khi hủy đơn.
+--
+-- order_id chỉ dùng cho hai loại phiếu tự động.
+-- UNIQUE(order_id, document_type) ngăn tạo lặp mỗi loại
+-- phiếu tự động của cùng một đơn.
+-- =========================================================
+
+CREATE TABLE stock_documents (
+    document_id INT AUTO_INCREMENT PRIMARY KEY,
+    document_code VARCHAR(50) NOT NULL,
+
+    document_type ENUM(
+        'PurchaseReceipt',
+        'AdjustmentIn',
+        'AdjustmentOut',
+        'OrderIssue',
+        'OrderCancellationReceipt'
+    ) NOT NULL,
+
+    document_status ENUM('Draft', 'Confirmed')
+        NOT NULL DEFAULT 'Draft',
+
+    supplier_id INT NULL,
+    order_id INT NULL,
+
+    reason TEXT NOT NULL,
+
+    created_by_user_id INT NOT NULL,
+    confirmed_by_user_id INT NULL,
+
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    confirmed_at DATETIME NULL,
+
+    CONSTRAINT uq_stock_documents_code
+        UNIQUE (document_code),
+
+    CONSTRAINT uq_stock_documents_order_type
+        UNIQUE (order_id, document_type),
+
+    CONSTRAINT fk_stock_documents_supplier
+        FOREIGN KEY (supplier_id)
+        REFERENCES suppliers(supplier_id)
+        ON DELETE RESTRICT,
+
+    CONSTRAINT fk_stock_documents_order
+        FOREIGN KEY (order_id)
+        REFERENCES orders(order_id)
+        ON DELETE RESTRICT,
+
+    CONSTRAINT fk_stock_documents_created_by
+        FOREIGN KEY (created_by_user_id)
+        REFERENCES users(user_id)
+        ON DELETE RESTRICT,
+
+    CONSTRAINT fk_stock_documents_confirmed_by
+        FOREIGN KEY (confirmed_by_user_id)
+        REFERENCES users(user_id)
+        ON DELETE RESTRICT,
+
+    INDEX ix_stock_documents_type_date
+        (document_type, created_at),
+
+    INDEX ix_stock_documents_status
+        (document_status)
+) ENGINE = InnoDB;
+
+
+-- =========================================================
+-- 20. CHI TIẾT PHIẾU KHO
+-- quantity luôn dương.
+-- Cộng/trừ tồn dựa vào document_type.
+-- =========================================================
+
+CREATE TABLE stock_document_items (
+    document_item_id INT AUTO_INCREMENT PRIMARY KEY,
+
+    document_id INT NOT NULL,
+    variant_id INT NOT NULL,
+
+    quantity INT NOT NULL,
+    unit_cost DECIMAL(15,2) NULL,
+    note TEXT NULL,
+
+    CONSTRAINT uq_stock_items_document_variant
+        UNIQUE (document_id, variant_id),
+
+    CONSTRAINT chk_stock_items_quantity
+        CHECK (quantity > 0),
+
+    CONSTRAINT chk_stock_items_unit_cost
+        CHECK (unit_cost IS NULL OR unit_cost >= 0),
+
+    CONSTRAINT fk_stock_items_document
+        FOREIGN KEY (document_id)
+        REFERENCES stock_documents(document_id)
+        ON DELETE RESTRICT,
+
+    CONSTRAINT fk_stock_items_variant
+        FOREIGN KEY (variant_id)
+        REFERENCES product_variants(variant_id)
+        ON DELETE RESTRICT
+) ENGINE = InnoDB;
+
+
+-- =========================================================
+-- DỮ LIỆU VAI TRÒ BAN ĐẦU
+-- =========================================================
+
+INSERT INTO roles (role_name)
+VALUES
+    ('Admin'),
+    ('Employee'),
+    ('Customer');
