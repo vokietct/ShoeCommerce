@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "gsDQh/7JYXw=",
+  "dgSpecHash": "/dlvR2Q6bl8=",
   "success": true,
-  "projectFilePath": "C:\\Users\\KIET\\Desktop\\DoanCSharp\\ShoeCommerce_Blazor\\ShoeCommerce\\ShoeCommerce.csproj",
+  "projectFilePath": "C:\\Users\\KIET\\Desktop\\DoanCSharp\\Doan\\ShoeCommerce\\ShoeCommerce\\ShoeCommerce.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\KIET\\.nuget\\packages\\microsoft.aspnetcore.app.internal.assets\\10.0.12\\microsoft.aspnetcore.app.internal.assets.10.0.12.nupkg.sha512"
   ],

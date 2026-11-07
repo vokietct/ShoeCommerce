@@ -50,11 +50,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\KIET\\Desktop\\DoanCSharp\\ShoeCommerce_Blazor\\ShoeCommerce\\ShoeCommerce.csproj",
+      "projectUniqueName": "C:\\Users\\KIET\\Desktop\\DoanCSharp\\Doan\\ShoeCommerce\\ShoeCommerce\\ShoeCommerce.csproj",
       "projectName": "ShoeCommerce",
-      "projectPath": "C:\\Users\\KIET\\Desktop\\DoanCSharp\\ShoeCommerce_Blazor\\ShoeCommerce\\ShoeCommerce.csproj",
+      "projectPath": "C:\\Users\\KIET\\Desktop\\DoanCSharp\\Doan\\ShoeCommerce\\ShoeCommerce\\ShoeCommerce.csproj",
       "packagesPath": "C:\\Users\\KIET\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\KIET\\Desktop\\DoanCSharp\\ShoeCommerce_Blazor\\ShoeCommerce\\obj\\",
+      "outputPath": "C:\\Users\\KIET\\Desktop\\DoanCSharp\\Doan\\ShoeCommerce\\ShoeCommerce\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "C:\\Users\\KIET\\AppData\\Roaming\\NuGet\\NuGet.Config",
