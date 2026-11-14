@@ -3,9 +3,13 @@
 @inject NavigationManager Navigation
 @implements IDisposable
 
-<div class="admin-wrapper">
+<div class="admin-wrapper @(menuOpen ? "menu-open" : "")">
+    @if (menuOpen)
+    {
+        <button class="admin-menu-backdrop" aria-label="Đóng menu" @onclick="() => menuOpen = false"></button>
+    }
     <!-- Admin Sidebar -->
-    <aside class="admin-sidebar">
+    <aside class="admin-sidebar" @onclick="() => menuOpen = false">
         <div class="sidebar-header">
             <a href="/admin" class="sidebar-logo">
                 shoestore<span class="dot">.</span>
@@ -167,15 +171,16 @@
             <a href="/" class="btn btn-sm btn-outline-light w-100 mb-2">
                 <i class="bi bi-shop me-1"></i> Xem Cửa Hàng
             </a>
-            <button @onclick="HandleLogout" class="btn btn-sm btn-danger w-100">
+            <form method="post" action="/account/logout" data-enhance="false"><AntiforgeryToken /><button type="submit" class="btn btn-sm btn-danger w-100">
                 <i class="bi bi-box-arrow-right me-1"></i> Đăng Xuất
-            </button>
+            </button></form>
         </div>
     </aside>
 
     <!-- Admin Main Body -->
     <div class="admin-main">
         <header class="admin-topbar">
+            <button class="btn btn-outline-secondary d-lg-none" aria-label="Mở menu quản trị" aria-expanded="@menuOpen" @onclick="() => menuOpen = !menuOpen"><i class="bi bi-list"></i></button>
             <div class="d-flex align-items-center gap-3">
                 <div class="badge bg-light text-dark border px-2 py-1">
                     <i class="bi bi-building me-1"></i> Kho chung ShoeStore
@@ -203,6 +208,7 @@
 </div>
 
 @code {
+    private bool menuOpen;
     protected override void OnInitialized()
     {
         AuthService.OnAuthStateChanged += StateHasChanged;
@@ -218,11 +224,6 @@
         }
     }
 
-    private async Task HandleLogout()
-    {
-        await AuthService.LogoutAsync();
-        Navigation.NavigateTo("/admin/login");
-    }
 
     public void Dispose()
     {

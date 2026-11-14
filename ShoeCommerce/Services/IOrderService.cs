@@ -57,7 +57,8 @@ public interface IOrderService
     Task<(bool Success, string Message)> CancelOrderAdminAsync(
         int orderId,
         string cancelReason,
-        int changedByUserId);
+        int changedByUserId,
+        bool bankTransferChecked = false);
 
     Task<(bool Success, string Message)> UpdateOrderShippingInfoAsync(
         int orderId,

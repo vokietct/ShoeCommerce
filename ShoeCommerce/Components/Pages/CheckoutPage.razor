@@ -1,3 +1,4 @@
+@attribute [Authorize(Roles = "Customer")]
 @page "/checkout"
 @inject ICartService CartService
 @inject IOrderService OrderService
@@ -150,7 +151,7 @@
                                     @if (paymentMethod == PaymentMethod.BankTransfer)
                                     {
                                         <div class="alert alert-info py-2 px-3 small mt-2 mb-0">
-                                            <strong>Thông tin tài khoản:</strong> Vietcombank · STK: <strong>1029384756</strong> · Chủ TK: CỬA HÀNG GIÀY SHOESTORE. Cú pháp chuyển khoản sẽ được cung cấp ngay sau khi bạn bấm đặt hàng.
+                                            <ShoeCommerce.Components.Shared.BankTransferDetails />
                                         </div>
                                     }
                                 </label>
@@ -352,7 +353,14 @@
 
     private async Task HandlePlaceOrder()
     {
+        if (isSubmitting) return;
         errorMessage = null;
+        if (!string.IsNullOrWhiteSpace(promoCodeInput))
+        {
+            await ApplyPromo();
+            if (string.IsNullOrEmpty(appliedPromoCode)) { errorMessage = promoMessage; return; }
+        }
+        else { appliedPromoCode = ""; promoDiscount = 0; }
 
         if (string.IsNullOrWhiteSpace(receiverName) || string.IsNullOrWhiteSpace(phone) || string.IsNullOrWhiteSpace(shippingAddress))
         {

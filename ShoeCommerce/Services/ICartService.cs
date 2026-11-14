@@ -26,6 +26,7 @@ public record CartSummaryDto(
 
 public interface ICartService
 {
+    event Action? OnCartChanged;
     Task<CartSummaryDto> GetCartAsync(int customerId);
     Task<(bool Success, string Message)> AddToCartAsync(int customerId, int variantId, int quantity);
     Task<(bool Success, string Message)> UpdateQuantityAsync(int customerId, int cartItemId, int quantity);

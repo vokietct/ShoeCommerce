@@ -1,3 +1,4 @@
+@attribute [Authorize(Roles = "Admin")]
 @page "/admin/categories-brands"
 @layout Layout.AdminLayout
 @inject ICategoryBrandService CategoryBrandService
@@ -41,6 +42,8 @@
     </div>
 }
 
+<input class="form-control mb-3" aria-label="Tìm danh mục hoặc thương hiệu" placeholder="Tìm theo tên danh mục hoặc thương hiệu..." @bind="searchTerm" @bind:event="oninput" />
+
 <!-- Tab Navigation -->
 <ul class="nav nav-pills mb-4" role="tablist">
     <li class="nav-item">
@@ -79,7 +82,7 @@ else if (activeTab == "categories")
                 <tbody>
                     @if (categories != null)
                     {
-                        @foreach (var c in categories)
+                        @foreach (var c in categories.Where(c => c.CategoryName.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)))
                         {
                             <tr>
                                 <td class="text-muted">#@c.CategoryId</td>
@@ -126,7 +129,7 @@ else
                 <tbody>
                     @if (brands != null)
                     {
-                        @foreach (var b in brands)
+                        @foreach (var b in brands.Where(b => b.BrandName.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)))
                         {
                             <tr>
                                 <td class="text-muted">#@b.BrandId</td>
@@ -216,6 +219,7 @@ else
 }
 
 @code {
+    private string searchTerm = "";
     private string activeTab = "categories";
     private List<Category>? categories;
     private List<Brand>? brands;

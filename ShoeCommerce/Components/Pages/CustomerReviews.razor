@@ -1,3 +1,4 @@
+@attribute [Authorize(Roles = "Customer")]
 @page "/my-reviews"
 @inject IReviewService ReviewService
 @inject IAuthService AuthService

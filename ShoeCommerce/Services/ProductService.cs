@@ -7,10 +7,12 @@ namespace ShoeCommerce.Services;
 public class ProductService : IProductService
 {
     private readonly IDbContextFactory<ShoeStoreDbContext> _contextFactory;
+    private readonly AccessGuard _access;
 
-    public ProductService(IDbContextFactory<ShoeStoreDbContext> contextFactory)
+    public ProductService(IDbContextFactory<ShoeStoreDbContext> contextFactory, AccessGuard access)
     {
         _contextFactory = contextFactory;
+        _access = access;
     }
 
     public async Task<ProductCatalogResult> GetCatalogProductsAsync(
@@ -49,26 +51,29 @@ public class ProductService : IProductService
             query = query.Where(p => p.ProductName.ToLower().Contains(term) || p.ProductCode.ToLower().Contains(term));
         }
 
-        // Lọc theo khoảng giá: sản phẩm có ít nhất một biến thể đang kinh doanh nằm trong khoảng giá
-        if (minPrice.HasValue && minPrice.Value > 0)
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, 100);
+        if (minPrice.HasValue || maxPrice.HasValue)
+            query = query.Where(p => p.Variants.Any(v => v.Status == ProductStatus.Selling &&
+                (!minPrice.HasValue || v.Price >= minPrice.Value) &&
+                (!maxPrice.HasValue || v.Price <= maxPrice.Value)));
+        var totalItems = await query.CountAsync();
+        var totalPages = (int)Math.Ceiling(totalItems / (double)pageSize);
+        query = sortBy switch
         {
-            query = query.Where(p => p.Variants.Any(v => v.Status == ProductStatus.Selling && v.Price >= minPrice.Value));
-        }
-
-        if (maxPrice.HasValue && maxPrice.Value > 0)
-        {
-            query = query.Where(p => p.Variants.Any(v => v.Status == ProductStatus.Selling && v.Price <= maxPrice.Value));
-        }
-
-        // Project DTO first or order in memory / SQL
-        var rawList = await query.ToListAsync();
+            "price_asc" => query.OrderBy(p => p.Variants.Where(v => v.Status == ProductStatus.Selling).Min(v => v.Price)).ThenBy(p => p.ProductId),
+            "price_desc" => query.OrderByDescending(p => p.Variants.Where(v => v.Status == ProductStatus.Selling).Min(v => v.Price)).ThenBy(p => p.ProductId),
+            "rating" => query.OrderByDescending(p => p.Reviews.Select(r => (double?)r.Rating).Average() ?? 0).ThenBy(p => p.ProductId),
+            _ => query.OrderByDescending(p => p.CreatedAt).ThenByDescending(p => p.ProductId)
+        };
+        var rawList = await query.Skip((page - 1) * pageSize).Take(pageSize).AsSplitQuery().ToListAsync();
 
         var dtoList = rawList.Select(p =>
         {
             var sellingVariants = p.Variants.Where(v => v.Status == ProductStatus.Selling).ToList();
             var minP = sellingVariants.Any() ? sellingVariants.Min(v => v.Price) : 0;
             var maxP = sellingVariants.Any() ? sellingVariants.Max(v => v.Price) : 0;
-            var avgR = p.Reviews.Any() ? p.Reviews.Average(r => (double)r.Rating) : 5.0;
+            var avgR = p.Reviews.Any() ? p.Reviews.Average(r => (double)r.Rating) : 0.0;
             var totalStock = sellingVariants.Sum(v => v.StockQuantity);
 
             return new ProductCardDto(
@@ -87,24 +92,12 @@ public class ProductService : IProductService
             );
         }).ToList();
 
-        // Sắp xếp
-        dtoList = sortBy switch
-        {
-            "price_asc" => dtoList.OrderBy(p => p.MinPrice).ToList(),
-            "price_desc" => dtoList.OrderByDescending(p => p.MinPrice).ToList(),
-            "rating" => dtoList.OrderByDescending(p => p.AverageRating).ToList(),
-            _ => dtoList.OrderByDescending(p => p.ProductId).ToList()
-        };
-
-        var totalItems = dtoList.Count;
-        var totalPages = (int)Math.Ceiling(totalItems / (double)pageSize);
-        var pagedItems = dtoList.Skip((page - 1) * pageSize).Take(pageSize).ToList();
-
-        return new ProductCatalogResult(pagedItems, totalItems, page, pageSize, totalPages);
+        return new ProductCatalogResult(dtoList, totalItems, page, pageSize, totalPages);
     }
 
     public async Task<Product?> GetProductDetailAsync(int productId, bool includeAllVariants = false)
     {
+        if (includeAllVariants) await _access.StaffAsync();
         await using var context = await _contextFactory.CreateDbContextAsync();
 
         var query = context.Products
@@ -119,7 +112,7 @@ public class ProductService : IProductService
             .Where(p => p.ProductId == productId);
 
         var product = await query.FirstOrDefaultAsync();
-        if (product == null) return null;
+        if (product == null || (!includeAllVariants && product.Status != ProductStatus.Selling)) return null;
 
         if (!includeAllVariants)
         {
@@ -163,6 +156,7 @@ public class ProductService : IProductService
         int page = 1,
         int pageSize = 10)
     {
+        await _access.StaffAsync();
         await using var context = await _contextFactory.CreateDbContextAsync();
 
         var query = context.Products
@@ -200,6 +194,7 @@ public class ProductService : IProductService
 
     public async Task<(bool Success, string Message, int? ProductId)> CreateProductAsync(Product product)
     {
+        await _access.AdminAsync();
         if (string.IsNullOrWhiteSpace(product.ProductCode) || string.IsNullOrWhiteSpace(product.ProductName))
             return (false, "Mã sản phẩm và tên sản phẩm không được để trống.", null);
 
@@ -221,6 +216,7 @@ public class ProductService : IProductService
 
     public async Task<(bool Success, string Message)> UpdateProductAsync(Product product)
     {
+        await _access.AdminAsync();
         if (string.IsNullOrWhiteSpace(product.ProductCode) || string.IsNullOrWhiteSpace(product.ProductName))
             return (false, "Mã sản phẩm và tên sản phẩm không được để trống.");
 
@@ -249,6 +245,7 @@ public class ProductService : IProductService
 
     public async Task<(bool Success, string Message)> ToggleProductStatusAsync(int productId)
     {
+        await _access.AdminAsync();
         await using var context = await _contextFactory.CreateDbContextAsync();
         var existing = await context.Products.FindAsync(productId);
         if (existing == null)
@@ -264,6 +261,7 @@ public class ProductService : IProductService
 
     public async Task<(bool Success, string Message)> DeleteProductAsync(int productId)
     {
+        await _access.AdminAsync();
         await using var context = await _contextFactory.CreateDbContextAsync();
         var existing = await context.Products
             .Include(p => p.Variants)
@@ -299,10 +297,11 @@ public class ProductService : IProductService
 
     public async Task<(bool Success, string Message, int? VariantId)> AddVariantAsync(ProductVariant variant)
     {
+        await _access.AdminAsync();
         if (string.IsNullOrWhiteSpace(variant.Sku) || string.IsNullOrWhiteSpace(variant.Size) || string.IsNullOrWhiteSpace(variant.Color))
             return (false, "SKU, Size và Màu sắc không được để trống.", null);
 
-        if (variant.Price < 0)
+        if (variant.Price < 0 || variant.LowStockThreshold < 0)
             return (false, "Giá bán không được âm.", null);
 
         await using var context = await _contextFactory.CreateDbContextAsync();
@@ -323,6 +322,7 @@ public class ProductService : IProductService
         variant.Sku = variant.Sku.Trim().ToUpper();
         variant.Size = variant.Size.Trim();
         variant.Color = variant.Color.Trim();
+        variant.StockQuantity = 0; // Tồn kho chỉ thay đổi qua phiếu kho
         variant.CreatedAt = DateTime.Now;
         variant.UpdatedAt = DateTime.Now;
 
@@ -334,10 +334,11 @@ public class ProductService : IProductService
 
     public async Task<(bool Success, string Message)> UpdateVariantAsync(ProductVariant variant)
     {
+        await _access.AdminAsync();
         if (string.IsNullOrWhiteSpace(variant.Sku) || string.IsNullOrWhiteSpace(variant.Size) || string.IsNullOrWhiteSpace(variant.Color))
             return (false, "SKU, Size và Màu sắc không được để trống.");
 
-        if (variant.Price < 0)
+        if (variant.Price < 0 || variant.LowStockThreshold < 0)
             return (false, "Giá bán không được âm.");
 
         await using var context = await _contextFactory.CreateDbContextAsync();
@@ -373,6 +374,7 @@ public class ProductService : IProductService
 
     public async Task<(bool Success, string Message)> DeleteVariantAsync(int variantId)
     {
+        await _access.AdminAsync();
         await using var context = await _contextFactory.CreateDbContextAsync();
         var existing = await context.ProductVariants.FindAsync(variantId);
         if (existing == null)
@@ -398,6 +400,7 @@ public class ProductService : IProductService
 
     public async Task<(bool Success, string Message)> ToggleVariantStatusAsync(int variantId)
     {
+        await _access.AdminAsync();
         await using var context = await _contextFactory.CreateDbContextAsync();
         var existing = await context.ProductVariants.FindAsync(variantId);
         if (existing == null)

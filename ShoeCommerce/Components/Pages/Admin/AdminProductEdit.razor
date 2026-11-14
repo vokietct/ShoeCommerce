@@ -1,3 +1,4 @@
+@attribute [Authorize(Roles = "Admin")]
 @page "/admin/products/new"
 @page "/admin/products/{id:int}/edit"
 @layout Layout.AdminLayout
@@ -167,7 +168,7 @@
     private bool isSubmitting = false;
     private string? errorMessage;
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnParametersSetAsync()
     {
         isLoading = true;
         categories = await CategoryBrandService.GetAllCategoriesAsync();

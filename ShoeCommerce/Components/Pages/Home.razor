@@ -118,7 +118,7 @@
                 {
                     var sellingVars = prod.Variants.Where(v => v.Status == ProductStatus.Selling).ToList();
                     var minPrice = sellingVars.Any() ? sellingVars.Min(v => v.Price) : 0;
-                    var avgRating = prod.Reviews.Any() ? prod.Reviews.Average(r => (double)r.Rating) : 5.0;
+                    var avgRating = prod.Reviews.Any() ? prod.Reviews.Average(r => (double)r.Rating) : 0.0;
 
                     <div class="col-lg-3 col-md-4 col-6">
                         <div class="product-card">

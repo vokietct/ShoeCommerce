@@ -1,7 +1,7 @@
+@attribute [Authorize(Roles = "Customer")]
 @page "/order-success/{orderCode}"
 @inject IOrderService OrderService
 @inject IAuthService AuthService
-@inject IDbContextFactory<ShoeStoreDbContext> ContextFactory
 @inject NavigationManager Navigation
 
 <div class="container py-5" style="max-width: 800px;">
@@ -36,12 +36,12 @@
                 <span class="fs-4 fw-bold text-primary font-monospace">@order.OrderCode</span>
             </div>
             <div class="small text-secondary">
-                Trạng thái hiện tại: <span class="badge bg-warning text-dark px-2 py-1">Chờ xác nhận</span>
+                Trạng thái hiện tại: <span class="badge bg-warning text-dark px-2 py-1">@(order.OrderStatus switch { OrderStatus.Pending => "Chờ xác nhận", OrderStatus.Confirmed => "Đã xác nhận", OrderStatus.Shipping => "Đang giao", OrderStatus.Completed => "Hoàn tất", _ => "Đã hủy" })</span>
             </div>
         </div>
 
         <!-- Bank Transfer Details Box (If BankTransfer chosen) -->
-        @if (order.Payment?.PaymentMethod == PaymentMethod.BankTransfer)
+        @if (order.Payment?.PaymentMethod == PaymentMethod.BankTransfer && order.Payment.PaymentStatus == PaymentStatus.Unpaid)
         {
             <div class="bg-white rounded-4 border border-primary p-4 mb-4 shadow-sm">
                 <div class="d-flex align-items-center gap-2 mb-3">
@@ -53,24 +53,7 @@
                 </p>
 
                 <div class="bg-light p-3 rounded-3 mb-3">
-                    <div class="row g-2 small">
-                        <div class="col-sm-4 text-secondary">Ngân hàng:</div>
-                        <div class="col-sm-8 fw-bold text-dark">Ngân hàng Ngoại thương Việt Nam (Vietcombank)</div>
-
-                        <div class="col-sm-4 text-secondary">Số tài khoản:</div>
-                        <div class="col-sm-8 fw-bold fs-6 text-primary">1029384756</div>
-
-                        <div class="col-sm-4 text-secondary">Chủ tài khoản:</div>
-                        <div class="col-sm-8 fw-bold text-dark">CỬA HÀNG GIÀY SHOESTORE</div>
-
-                        <div class="col-sm-4 text-secondary">Số tiền cần chuyển:</div>
-                        <div class="col-sm-8 fw-extrabold fs-5 text-danger">@((order.TotalAmount - order.DiscountAmount).ToString("N0")) ₫</div>
-
-                        <div class="col-sm-4 text-secondary">Nội dung chuyển khoản:</div>
-                        <div class="col-sm-8 fw-bold text-dark">
-                            <span class="bg-white border px-2 py-1 rounded text-primary font-monospace">@order.OrderCode</span>
-                        </div>
-                    </div>
+                    <ShoeCommerce.Components.Shared.BankTransferDetails OrderCode="@order.OrderCode" Amount="@(order.TotalAmount - order.DiscountAmount)" />
                 </div>
 
                 <div class="small text-muted">
@@ -103,7 +86,7 @@
                             Hình thức: <strong>@(order.Payment?.PaymentMethod == PaymentMethod.COD ? "Thanh toán khi nhận hàng (COD)" : "Chuyển khoản ngân hàng")</strong>
                         </div>
                         <div>
-                            Trạng thái thanh toán: <span class="badge bg-warning text-dark">Chưa thanh toán</span>
+                            Trạng thái thanh toán: <span class="badge bg-warning text-dark">@(order.Payment?.PaymentStatus switch { PaymentStatus.Paid => "Đã thanh toán", PaymentStatus.Cancelled => "Đã hủy", _ => "Chưa thanh toán" })</span>
                         </div>
                         <div>Ngày đặt: @order.CreatedAt.ToString("dd/MM/yyyy HH:mm")</div>
                     </div>
@@ -176,14 +159,13 @@
     private Order? order;
     private bool isLoading = true;
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnParametersSetAsync()
     {
-        await using var context = await ContextFactory.CreateDbContextAsync();
-        order = await context.Orders
-            .AsNoTracking()
-            .Include(o => o.Payment)
-            .Include(o => o.OrderDetails)
-            .FirstOrDefaultAsync(o => o.OrderCode == OrderCode);
+        if (AuthService.CurrentUser != null)
+        {
+            var orders = await OrderService.GetCustomerOrdersAsync(AuthService.CurrentUser.UserId);
+            order = orders.FirstOrDefault(o => o.OrderCode == OrderCode);
+        }
 
         isLoading = false;
     }

@@ -9,7 +9,7 @@
                 shoestore<span class="dot">.</span>
             </a>
             <h4 class="fw-bold text-dark mt-3 mb-1">Đăng Ký Tài Khoản</h4>
-            <p class="text-secondary small">Trở thành thành viên để nhận ngay ưu đãi giảm 100.000 ₫</p>
+            <p class="text-secondary small">Tạo tài khoản để mua sắm và theo dõi đơn hàng</p>
         </div>
 
         @if (!string.IsNullOrEmpty(errorMessage))
@@ -19,12 +19,15 @@
             </div>
         }
 
-        <EditForm Model="this" FormName="customer-register" OnValidSubmit="HandleRegister">
+        <form method="post" action="/account/register" data-enhance="false">
+            <AntiforgeryToken />
+            <input type="hidden" name="returnUrl" value="@ReturnUrl" />
+            <input type="hidden" name="portal" value="register" />
             <div class="mb-3">
                 <label class="form-label small fw-semibold">Họ và tên <span class="text-danger">*</span></label>
                 <div class="input-group">
                     <span class="input-group-text bg-light text-secondary"><i class="bi bi-person"></i></span>
-                    <input type="text" class="form-control" placeholder="Nguyễn Văn A" @bind="fullName" required />
+                    <input type="text" class="form-control" placeholder="Nguyễn Văn A" name="fullName" autocomplete="name" required />
                 </div>
             </div>
 
@@ -32,7 +35,7 @@
                 <label class="form-label small fw-semibold">Địa chỉ Email <span class="text-danger">*</span></label>
                 <div class="input-group">
                     <span class="input-group-text bg-light text-secondary"><i class="bi bi-envelope"></i></span>
-                    <input type="email" class="form-control" placeholder="name@example.com" @bind="email" required />
+                    <input type="email" class="form-control" placeholder="name@example.com" name="email" autocomplete="email" required />
                 </div>
             </div>
 
@@ -40,7 +43,7 @@
                 <label class="form-label small fw-semibold">Số điện thoại <span class="text-danger">*</span></label>
                 <div class="input-group">
                     <span class="input-group-text bg-light text-secondary"><i class="bi bi-telephone"></i></span>
-                    <input type="text" class="form-control" placeholder="0901234567" @bind="phone" required />
+                    <input type="text" class="form-control" placeholder="0901234567" name="phone" autocomplete="tel" required />
                 </div>
             </div>
 
@@ -48,7 +51,7 @@
                 <label class="form-label small fw-semibold">Mật khẩu (tối thiểu 6 ký tự) <span class="text-danger">*</span></label>
                 <div class="input-group">
                     <span class="input-group-text bg-light text-secondary"><i class="bi bi-key"></i></span>
-                    <input type="password" class="form-control" placeholder="••••••••" @bind="password" required />
+                    <input type="password" class="form-control" placeholder="••••••••" name="password" autocomplete="new-password" required />
                 </div>
             </div>
 
@@ -56,26 +59,18 @@
                 <label class="form-label small fw-semibold">Xác nhận mật khẩu <span class="text-danger">*</span></label>
                 <div class="input-group">
                     <span class="input-group-text bg-light text-secondary"><i class="bi bi-shield-check"></i></span>
-                    <input type="password" class="form-control" placeholder="••••••••" @bind="confirmPassword" required />
+                    <input type="password" class="form-control" placeholder="••••••••" name="confirmPassword" autocomplete="new-password" required />
                 </div>
             </div>
 
-            <button type="submit" class="btn btn-dark-store w-100 py-2 rounded-pill fw-bold shadow-sm" disabled="@isLoading">
-                @if (isLoading)
-                {
-                    <span class="spinner-border spinner-border-sm me-2"></span>
-                    <span>Đang tạo tài khoản...</span>
-                }
-                else
-                {
-                    <span>Tạo Tài Khoản Khách Hàng</span>
-                }
+            <button type="submit" class="btn btn-dark-store w-100 py-2 rounded-pill fw-bold shadow-sm">
+                Tạo Tài Khoản
             </button>
-        </EditForm>
+        </form>
 
         <div class="text-center mt-4 text-secondary small">
             Đã có tài khoản?
-            <a href="/login@(string.IsNullOrEmpty(ReturnUrl) ? "" : $"?returnUrl={ReturnUrl}")" class="fw-bold text-primary text-decoration-none ms-1">
+            <a href="/login@(string.IsNullOrEmpty(ReturnUrl) ? "" : $"?returnUrl={Uri.EscapeDataString(ReturnUrl)}")" class="fw-bold text-primary text-decoration-none ms-1">
                 Đăng nhập ngay
             </a>
         </div>
@@ -85,37 +80,6 @@
 @code {
     [SupplyParameterFromQuery(Name = "returnUrl")]
     public string? ReturnUrl { get; set; }
-
-    private string fullName = "";
-    private string email = "";
-    private string phone = "";
-    private string password = "";
-    private string confirmPassword = "";
-
-    private bool isLoading = false;
-    private string? errorMessage;
-
-    private async Task HandleRegister()
-    {
-        errorMessage = null;
-
-        if (password != confirmPassword)
-        {
-            errorMessage = "Xác nhận mật khẩu không trùng khớp.";
-            return;
-        }
-
-        isLoading = true;
-        var res = await AuthService.RegisterCustomerAsync(fullName, email, phone, password);
-        isLoading = false;
-
-        if (res.Success)
-        {
-            Navigation.NavigateTo(ReturnUrl ?? "/");
-        }
-        else
-        {
-            errorMessage = res.Message;
-        }
-    }
+    [SupplyParameterFromQuery(Name = "error")]
+    public string? errorMessage { get; set; }
 }

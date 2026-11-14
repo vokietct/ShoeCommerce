@@ -7,14 +7,17 @@ namespace ShoeCommerce.Services;
 public class PromotionService : IPromotionService
 {
     private readonly IDbContextFactory<ShoeStoreDbContext> _contextFactory;
+    private readonly AccessGuard _access;
 
-    public PromotionService(IDbContextFactory<ShoeStoreDbContext> contextFactory)
+    public PromotionService(IDbContextFactory<ShoeStoreDbContext> contextFactory, AccessGuard access)
     {
         _contextFactory = contextFactory;
+        _access = access;
     }
 
     public async Task<List<Promotion>> GetAllPromotionsAsync(string? searchTerm = null)
     {
+        await _access.AdminAsync();
         await using var context = await _contextFactory.CreateDbContextAsync();
         var query = context.Promotions
             .AsNoTracking()
@@ -32,6 +35,7 @@ public class PromotionService : IPromotionService
 
     public async Task<Promotion?> GetPromotionByIdAsync(int promotionId)
     {
+        await _access.AdminAsync();
         await using var context = await _contextFactory.CreateDbContextAsync();
         return await context.Promotions
             .AsNoTracking()
@@ -41,6 +45,7 @@ public class PromotionService : IPromotionService
 
     public async Task<(bool Success, string Message, int? PromotionId)> CreatePromotionAsync(Promotion promotion)
     {
+        await _access.AdminAsync();
         if (string.IsNullOrWhiteSpace(promotion.PromoCode))
             return (false, "Mã khuyến mãi không được để trống.", null);
 
@@ -71,6 +76,7 @@ public class PromotionService : IPromotionService
 
     public async Task<(bool Success, string Message)> UpdatePromotionAsync(Promotion promotion)
     {
+        await _access.AdminAsync();
         if (string.IsNullOrWhiteSpace(promotion.PromoCode))
             return (false, "Mã khuyến mãi không được để trống.");
 
@@ -107,6 +113,7 @@ public class PromotionService : IPromotionService
 
     public async Task<(bool Success, string Message)> TogglePromotionStatusAsync(int promotionId)
     {
+        await _access.AdminAsync();
         await using var context = await _contextFactory.CreateDbContextAsync();
         var existing = await context.Promotions.FindAsync(promotionId);
         if (existing == null)
@@ -121,6 +128,7 @@ public class PromotionService : IPromotionService
 
     public async Task<(bool Success, string Message)> DeletePromotionAsync(int promotionId)
     {
+        await _access.AdminAsync();
         await using var context = await _contextFactory.CreateDbContextAsync();
         var existing = await context.Promotions
             .Include(p => p.Orders)

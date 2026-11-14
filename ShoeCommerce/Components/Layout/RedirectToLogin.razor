@@ -1,0 +1,14 @@
+@inject NavigationManager Navigation
+@inject IAuthService Auth
+
+<p class="p-4">Đang kiểm tra quyền truy cập…</p>
+
+@code {
+    protected override void OnInitialized()
+    {
+        var path = "/" + Navigation.ToBaseRelativePath(Navigation.Uri);
+        var target = Auth.IsAuthenticated ? "/access-denied" :
+            (path.StartsWith("/admin") ? "/admin/login" : "/login") + "?returnUrl=" + Uri.EscapeDataString(path);
+        Navigation.NavigateTo(target, forceLoad: true);
+    }
+}
