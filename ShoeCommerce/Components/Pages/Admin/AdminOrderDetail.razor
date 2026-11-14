@@ -1,3 +1,4 @@
+@attribute [Authorize(Roles = "Admin,Employee")]
 @page "/admin/orders/{id:int}"
 @layout Layout.AdminLayout
 @inject IOrderService OrderService
@@ -269,6 +270,13 @@ else
                         <label class="form-label small fw-semibold">Lý do hủy đơn <span class="text-danger">*</span></label>
                         <textarea class="form-control" rows="3" placeholder="Nhập lý do hủy đơn..." @bind="cancelReasonInput"></textarea>
                     </div>
+                    @if (order?.Payment?.PaymentMethod == PaymentMethod.BankTransfer)
+                    {
+                        <label class="form-check">
+                            <input class="form-check-input" type="checkbox" @bind="bankTransferChecked" />
+                            <span>Tôi đã kiểm tra ngân hàng và xác nhận chưa nhận tiền của đơn này.</span>
+                        </label>
+                    }
                 </div>
                 <div class="modal-footer border-top">
                     <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill px-3" @onclick="() => showCancelModal = false">Đóng</button>
@@ -326,6 +334,7 @@ else
     private bool alertSuccess = true;
 
     private bool showCancelModal = false;
+    private bool bankTransferChecked;
     private string cancelReasonInput = "";
 
     private bool showEditShippingModal = false;
@@ -334,7 +343,7 @@ else
     private string editAddress = "";
     private string editNote = "";
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnParametersSetAsync()
     {
         await LoadOrderDetail();
     }
@@ -369,7 +378,7 @@ else
         }
 
         if (AuthService.CurrentUser == null || order == null) return;
-        var res = await OrderService.CancelOrderAdminAsync(order.OrderId, cancelReasonInput, AuthService.CurrentUser.UserId);
+        var res = await OrderService.CancelOrderAdminAsync(order.OrderId, cancelReasonInput, AuthService.CurrentUser.UserId, bankTransferChecked);
         alertSuccess = res.Success;
         alertMessage = res.Message;
         showCancelModal = false;

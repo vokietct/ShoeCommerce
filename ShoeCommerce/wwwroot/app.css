@@ -559,3 +559,19 @@ a:hover {
     font-weight: 600;
     font-size: 0.9rem;
 }
+
+.admin-menu-backdrop { display: none; }
+@media (max-width: 991.98px) {
+    .admin-sidebar { position: fixed; inset: 0 auto 0 0; z-index: 1050; overflow-y: auto; transform: translateX(-100%); transition: transform .2s ease; }
+    .menu-open .admin-sidebar { transform: translateX(0); }
+    .admin-menu-backdrop { display: block; position: fixed; inset: 0; z-index: 1040; background: #0f172a88; border: 0; }
+    .admin-main { width: 100%; }
+    .admin-content { padding: 1rem; }
+    .admin-topbar { padding: .75rem 1rem; gap: .75rem; flex-wrap: wrap; }
+}
+@media (max-width: 575.98px) {
+    .top-announcement-bar { font-size: .7rem; }
+    .customer-header .brand-logo { font-size: 1.35rem; }
+    .customer-header > .container { gap: .75rem !important; }
+    .modal-dialog { margin: .75rem; }
+}

@@ -1,0 +1,24 @@
+@inject Microsoft.Extensions.Options.IOptions<BankTransferOptions> Settings
+
+@if (Settings.Value.IsConfigured)
+{
+    <dl class="row small mb-0">
+        <dt class="col-sm-4">Ngân hàng</dt><dd class="col-sm-8">@Settings.Value.BankName</dd>
+        <dt class="col-sm-4">Số tài khoản</dt><dd class="col-sm-8 fw-bold">@Settings.Value.AccountNumber</dd>
+        <dt class="col-sm-4">Chủ tài khoản</dt><dd class="col-sm-8">@Settings.Value.AccountName</dd>
+        @if (!string.IsNullOrEmpty(OrderCode))
+        {
+            <dt class="col-sm-4">Nội dung chuyển khoản</dt><dd class="col-sm-8 font-monospace fw-bold">@OrderCode</dd>
+            <dt class="col-sm-4">Số tiền</dt><dd class="col-sm-8 fw-bold">@Amount.ToString("N0") ₫</dd>
+        }
+    </dl>
+}
+else
+{
+    <p class="small mb-0">Vui lòng liên hệ cửa hàng để nhận thông tin tài khoản chuyển khoản.</p>
+}
+
+@code {
+    [Parameter] public string? OrderCode { get; set; }
+    [Parameter] public decimal Amount { get; set; }
+}

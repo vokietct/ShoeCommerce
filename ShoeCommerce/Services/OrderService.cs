@@ -1,3 +1,4 @@
+using System.Data;
 using Microsoft.EntityFrameworkCore;
 using ShoeCommerce.Data;
 using ShoeCommerce.Models;
@@ -7,10 +8,12 @@ namespace ShoeCommerce.Services;
 public class OrderService : IOrderService
 {
     private readonly IDbContextFactory<ShoeStoreDbContext> _contextFactory;
+    private readonly AccessGuard _access;
 
-    public OrderService(IDbContextFactory<ShoeStoreDbContext> contextFactory)
+    public OrderService(IDbContextFactory<ShoeStoreDbContext> contextFactory, AccessGuard access)
     {
         _contextFactory = contextFactory;
+        _access = access;
     }
 
     public async Task<(bool Success, string Message, decimal DiscountAmount, Promotion? Promo)> ValidatePromotionAsync(string promoCode, decimal totalAmount)
@@ -52,14 +55,17 @@ public class OrderService : IOrderService
         PaymentMethod paymentMethod,
         string? promoCode)
     {
+        await _access.CustomerAsync(customerId);
+        if (!Enum.IsDefined(paymentMethod)) return (false, "Phương thức thanh toán không hợp lệ.", null);
         if (string.IsNullOrWhiteSpace(receiverName) || string.IsNullOrWhiteSpace(phone) || string.IsNullOrWhiteSpace(shippingAddress))
             return (false, "Vui lòng nhập đầy đủ họ tên người nhận, số điện thoại và địa chỉ nhận hàng.", null);
 
         await using var context = await _contextFactory.CreateDbContextAsync();
-        using var transaction = await context.Database.BeginTransactionAsync();
+        using var transaction = await context.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted);
 
         try
         {
+            await DatabaseLocks.CustomerAsync(context, customerId);
             var cart = await context.Carts
                 .Include(c => c.Items)
                     .ThenInclude(i => i.Variant)
@@ -71,7 +77,7 @@ public class OrderService : IOrderService
 
             // Kiểm tra tính hợp lệ và tồn kho của từng biến thể
             decimal totalAmount = 0;
-            foreach (var item in cart.Items)
+            foreach (var item in cart.Items.OrderBy(i => i.VariantId))
             {
                 if (item.Variant == null || item.Variant.Product == null)
                     return (false, "Sản phẩm trong giỏ không còn tồn tại.", null);
@@ -79,7 +85,7 @@ public class OrderService : IOrderService
                 if (item.Variant.Status != ProductStatus.Selling || item.Variant.Product.Status != ProductStatus.Selling)
                     return (false, $"Sản phẩm '{item.Variant.Product.ProductName}' ({item.Variant.Size}/{item.Variant.Color}) đã ngừng kinh doanh.", null);
 
-                if (item.Quantity > item.Variant.StockQuantity)
+                if (item.Quantity <= 0 || item.Quantity > item.Variant.StockQuantity)
                     return (false, $"Sản phẩm '{item.Variant.Product.ProductName}' ({item.Variant.Size}/{item.Variant.Color}) chỉ còn {item.Variant.StockQuantity} sản phẩm trong kho. Vui lòng cập nhật lại giỏ hàng.", null);
 
                 totalAmount += item.Quantity * item.Variant.Price;
@@ -93,7 +99,8 @@ public class OrderService : IOrderService
             if (!string.IsNullOrWhiteSpace(promoCode))
             {
                 var promoRes = await ValidatePromotionAsync(promoCode, totalAmount);
-                if (promoRes.Success && promoRes.Promo != null)
+                if (!promoRes.Success) return (false, promoRes.Message, null);
+                if (promoRes.Promo != null)
                 {
                     discountAmount = promoRes.DiscountAmount;
                     promoId = promoRes.Promo.PromotionId;
@@ -102,7 +109,7 @@ public class OrderService : IOrderService
             }
 
             // Tạo mã đơn hàng duy nhất: SS + yyMMddHHmmss + 2 số ngẫu nhiên
-            var orderCode = $"SS{DateTime.Now:yyMMddHHmmss}{Random.Shared.Next(10, 99)}";
+            var orderCode = $"SS{DateTime.Now:yyMMddHHmmss}{Guid.NewGuid().ToString("N")[..12]}";
 
             var order = new Order
             {
@@ -127,7 +134,7 @@ public class OrderService : IOrderService
             // Tạo chi tiết đơn hàng (snapshots) và trừ kho
             var stockItems = new List<StockDocumentItem>();
 
-            foreach (var item in cart.Items)
+            foreach (var item in cart.Items.OrderBy(i => i.VariantId))
             {
                 var detail = new OrderDetail
                 {
@@ -143,8 +150,14 @@ public class OrderService : IOrderService
                 context.OrderDetails.Add(detail);
 
                 // Trừ tồn kho
-                item.Variant.StockQuantity -= item.Quantity;
-                item.Variant.UpdatedAt = DateTime.Now;
+                var updated = await context.ProductVariants
+                    .Where(v => v.VariantId == item.VariantId && v.StockQuantity >= item.Quantity &&
+                        v.Status == ProductStatus.Selling && v.Product!.Status == ProductStatus.Selling && v.Price == item.Variant.Price)
+                    .ExecuteUpdateAsync(set => set
+                        .SetProperty(v => v.StockQuantity, v => v.StockQuantity - item.Quantity)
+                        .SetProperty(v => v.UpdatedAt, DateTime.Now));
+                if (updated != 1)
+                    return (false, "Tồn kho hoặc giá bán vừa thay đổi. Vui lòng kiểm tra lại giỏ hàng.", null);
 
                 stockItems.Add(new StockDocumentItem
                 {
@@ -203,15 +216,16 @@ public class OrderService : IOrderService
 
             return (true, "Đặt hàng thành công!", orderCode);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             await transaction.RollbackAsync();
-            return (false, $"Có lỗi xảy ra trong quá trình đặt hàng: {ex.Message}", null);
+            return (false, "Không thể cập nhật đơn hàng lúc này. Vui lòng tải lại và thử lại.", null);
         }
     }
 
     public async Task<List<Order>> GetCustomerOrdersAsync(int customerId)
     {
+        await _access.CustomerAsync(customerId);
         await using var context = await _contextFactory.CreateDbContextAsync();
         return await context.Orders
             .AsNoTracking()
@@ -226,6 +240,7 @@ public class OrderService : IOrderService
 
     public async Task<Order?> GetCustomerOrderDetailAsync(int customerId, int orderId)
     {
+        await _access.CustomerAsync(customerId);
         await using var context = await _contextFactory.CreateDbContextAsync();
         return await context.Orders
             .AsNoTracking()
@@ -240,14 +255,16 @@ public class OrderService : IOrderService
 
     public async Task<(bool Success, string Message)> CancelOrderCustomerAsync(int customerId, int orderId, string reason)
     {
+        await _access.CustomerAsync(customerId);
         if (string.IsNullOrWhiteSpace(reason))
             return (false, "Vui lòng nhập lý do hủy đơn.");
 
         await using var context = await _contextFactory.CreateDbContextAsync();
-        using var transaction = await context.Database.BeginTransactionAsync();
+        using var transaction = await context.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted);
 
         try
         {
+            await DatabaseLocks.OrderAsync(context, orderId);
             var order = await context.Orders
                 .Include(o => o.Payment)
                 .Include(o => o.OrderDetails)
@@ -263,7 +280,7 @@ public class OrderService : IOrderService
             if (order.Payment?.PaymentMethod != PaymentMethod.COD)
                 return (false, "Đối với đơn hàng chuyển khoản, quý khách vui lòng liên hệ trực tiếp với cửa hàng để được kiểm tra và hỗ trợ hủy khi chưa nhận tiền.");
 
-            if (order.Payment?.PaymentStatus == PaymentStatus.Paid)
+            if (order.Payment == null || order.Payment.PaymentStatus != PaymentStatus.Unpaid)
                 return (false, "Đơn hàng đã thanh toán, không thể hủy.");
 
             // Kiểm tra đã có phiếu hoàn kho cho đơn này chưa để tránh hoàn kho nhiều lần
@@ -274,12 +291,14 @@ public class OrderService : IOrderService
             {
                 // Hoàn lại tồn kho cho từng biến thể
                 var returnItems = new List<StockDocumentItem>();
-                foreach (var detail in order.OrderDetails)
+                foreach (var detail in order.OrderDetails.OrderBy(d => d.VariantId))
                 {
                     if (detail.Variant != null)
                     {
-                        detail.Variant.StockQuantity += detail.Quantity;
-                        detail.Variant.UpdatedAt = DateTime.Now;
+                        await context.ProductVariants.Where(v => v.VariantId == detail.VariantId)
+                            .ExecuteUpdateAsync(set => set
+                                .SetProperty(v => v.StockQuantity, v => v.StockQuantity + detail.Quantity)
+                                .SetProperty(v => v.UpdatedAt, DateTime.Now));
                     }
 
                     returnItems.Add(new StockDocumentItem
@@ -338,10 +357,10 @@ public class OrderService : IOrderService
 
             return (true, "Hủy đơn hàng thành công và hệ thống đã hoàn trả tồn kho.");
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             await transaction.RollbackAsync();
-            return (false, $"Lỗi khi hủy đơn hàng: {ex.Message}");
+            return (false, "Không thể cập nhật đơn hàng lúc này. Vui lòng tải lại và thử lại.");
         }
     }
 
@@ -353,6 +372,7 @@ public class OrderService : IOrderService
         int page = 1,
         int pageSize = 10)
     {
+        await _access.StaffAsync();
         await using var context = await _contextFactory.CreateDbContextAsync();
         var query = context.Orders
             .AsNoTracking()
@@ -413,6 +433,7 @@ public class OrderService : IOrderService
 
     public async Task<Order?> GetAdminOrderDetailAsync(int orderId)
     {
+        await _access.StaffAsync();
         await using var context = await _contextFactory.CreateDbContextAsync();
         return await context.Orders
             .AsNoTracking()
@@ -436,11 +457,13 @@ public class OrderService : IOrderService
         int changedByUserId,
         string? note = null)
     {
+        await _access.StaffAsync(changedByUserId);
         await using var context = await _contextFactory.CreateDbContextAsync();
-        using var transaction = await context.Database.BeginTransactionAsync();
+        using var transaction = await context.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted);
 
         try
         {
+            await DatabaseLocks.OrderAsync(context, orderId);
             var order = await context.Orders
                 .Include(o => o.Payment)
                 .FirstOrDefaultAsync(o => o.OrderId == orderId);
@@ -448,6 +471,8 @@ public class OrderService : IOrderService
             if (order == null)
                 return (false, "Không tìm thấy đơn hàng.");
 
+            if (order.Payment == null || order.Payment.PaymentStatus == PaymentStatus.Cancelled)
+                return (false, "Đơn hàng không có thanh toán hợp lệ.");
             var current = order.OrderStatus;
 
             // Kiểm tra trình tự hợp lệ: Chờ xác nhận -> Đã xác nhận -> Đang giao -> Hoàn tất
@@ -501,26 +526,29 @@ public class OrderService : IOrderService
 
             return (true, $"Đã cập nhật đơn hàng sang trạng thái '{newStatus}'.");
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             await transaction.RollbackAsync();
-            return (false, $"Lỗi cập nhật trạng thái đơn: {ex.Message}");
+            return (false, "Không thể cập nhật đơn hàng lúc này. Vui lòng tải lại và thử lại.");
         }
     }
 
     public async Task<(bool Success, string Message)> CancelOrderAdminAsync(
         int orderId,
         string cancelReason,
-        int changedByUserId)
+        int changedByUserId,
+        bool bankTransferChecked = false)
     {
+        await _access.StaffAsync(changedByUserId);
         if (string.IsNullOrWhiteSpace(cancelReason))
             return (false, "Vui lòng nhập lý do hủy đơn.");
 
         await using var context = await _contextFactory.CreateDbContextAsync();
-        using var transaction = await context.Database.BeginTransactionAsync();
+        using var transaction = await context.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted);
 
         try
         {
+            await DatabaseLocks.OrderAsync(context, orderId);
             var order = await context.Orders
                 .Include(o => o.Payment)
                 .Include(o => o.OrderDetails)
@@ -531,10 +559,12 @@ public class OrderService : IOrderService
                 return (false, "Không tìm thấy đơn hàng.");
 
             // Hủy đơn khi đơn ở trạng thái Chờ xác nhận hoặc Đã xác nhận, đồng thời chưa thanh toán.
+            if (order.Payment?.PaymentMethod == PaymentMethod.BankTransfer && !bankTransferChecked)
+                return (false, "Phải kiểm tra tài khoản ngân hàng và xác nhận chưa nhận tiền trước khi hủy.");
             if (order.OrderStatus != OrderStatus.Pending && order.OrderStatus != OrderStatus.Confirmed)
                 return (false, "Chỉ được hủy đơn khi đơn đang ở trạng thái 'Chờ xác nhận' hoặc 'Đã xác nhận'.");
 
-            if (order.Payment?.PaymentStatus == PaymentStatus.Paid)
+            if (order.Payment == null || order.Payment.PaymentStatus != PaymentStatus.Unpaid)
                 return (false, "Đơn hàng đã được thanh toán. Trong phạm vi hệ thống không xử lý hủy đơn đã nhận tiền.");
 
             var alreadyReturned = await context.StockDocuments.AnyAsync(sd =>
@@ -543,12 +573,14 @@ public class OrderService : IOrderService
             if (!alreadyReturned)
             {
                 var returnItems = new List<StockDocumentItem>();
-                foreach (var detail in order.OrderDetails)
+                foreach (var detail in order.OrderDetails.OrderBy(d => d.VariantId))
                 {
                     if (detail.Variant != null)
                     {
-                        detail.Variant.StockQuantity += detail.Quantity;
-                        detail.Variant.UpdatedAt = DateTime.Now;
+                        await context.ProductVariants.Where(v => v.VariantId == detail.VariantId)
+                            .ExecuteUpdateAsync(set => set
+                                .SetProperty(v => v.StockQuantity, v => v.StockQuantity + detail.Quantity)
+                                .SetProperty(v => v.UpdatedAt, DateTime.Now));
                     }
 
                     returnItems.Add(new StockDocumentItem
@@ -604,10 +636,10 @@ public class OrderService : IOrderService
 
             return (true, "Đã hủy đơn hàng và hoàn trả tồn kho thành công.");
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             await transaction.RollbackAsync();
-            return (false, $"Lỗi khi hủy đơn hàng: {ex.Message}");
+            return (false, "Không thể cập nhật đơn hàng lúc này. Vui lòng tải lại và thử lại.");
         }
     }
 
@@ -618,10 +650,13 @@ public class OrderService : IOrderService
         string address,
         string? note)
     {
+        await _access.StaffAsync();
         if (string.IsNullOrWhiteSpace(receiverName) || string.IsNullOrWhiteSpace(phone) || string.IsNullOrWhiteSpace(address))
             return (false, "Vui lòng nhập đầy đủ họ tên, số điện thoại và địa chỉ giao hàng.");
 
         await using var context = await _contextFactory.CreateDbContextAsync();
+        await using var transaction = await context.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted);
+        await DatabaseLocks.OrderAsync(context, orderId);
         var order = await context.Orders.FindAsync(orderId);
         if (order == null)
             return (false, "Không tìm thấy đơn hàng.");
@@ -637,6 +672,7 @@ public class OrderService : IOrderService
         order.UpdatedAt = DateTime.Now;
 
         await context.SaveChangesAsync();
+        await transaction.CommitAsync();
         return (true, "Cập nhật thông tin nhận hàng thành công!");
     }
 }

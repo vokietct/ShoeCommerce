@@ -1,3 +1,4 @@
+@attribute [Authorize(Roles = "Admin")]
 @page "/admin/stock-documents"
 @layout Layout.AdminLayout
 @inject IInventoryService InventoryService
@@ -135,6 +136,7 @@
                                 </button>
                                 @if (AuthService.IsAdmin && d.DocumentStatus == StockDocumentStatus.Draft && d.OrderId == null)
                                 {
+                                    <a class="btn btn-sm btn-outline-primary rounded-pill px-2" href="@($"/admin/stock-documents/{d.DocumentId}/edit")" title="Sửa phiếu nháp"><i class="bi bi-pencil"></i></a>
                                     <button class="btn btn-sm btn-success rounded-pill px-2 me-1" title="Xác nhận phiếu & cập nhật tồn kho" @onclick="() => ConfirmDocument(d.DocumentId)">
                                         <i class="bi bi-check-lg"></i>
                                     </button>

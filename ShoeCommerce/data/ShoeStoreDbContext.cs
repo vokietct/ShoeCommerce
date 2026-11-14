@@ -75,7 +75,8 @@ public class ShoeStoreDbContext : DbContext
         modelBuilder.Entity<CustomerAddress>(entity =>
         {
             entity.Property(e => e.DefaultCustomerId)
-                  .ValueGeneratedOnAddOrUpdate();
+                  .HasComputedColumnSql("CASE WHEN is_default = TRUE THEN customer_id ELSE NULL END", stored: true);
+            entity.HasIndex(e => e.DefaultCustomerId).IsUnique();
             entity.HasOne(e => e.Customer)
                   .WithMany(c => c.Addresses)
                   .HasForeignKey(e => e.CustomerId)

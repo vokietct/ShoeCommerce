@@ -7,14 +7,17 @@ namespace ShoeCommerce.Services;
 public class ReviewService : IReviewService
 {
     private readonly IDbContextFactory<ShoeStoreDbContext> _contextFactory;
+    private readonly AccessGuard _access;
 
-    public ReviewService(IDbContextFactory<ShoeStoreDbContext> contextFactory)
+    public ReviewService(IDbContextFactory<ShoeStoreDbContext> contextFactory, AccessGuard access)
     {
         _contextFactory = contextFactory;
+        _access = access;
     }
 
     public async Task<bool> CanCustomerReviewProductAsync(int customerId, int productId)
     {
+        await _access.CustomerAsync(customerId);
         await using var context = await _contextFactory.CreateDbContextAsync();
 
         // 1. Khách hàng đã đánh giá sản phẩm này chưa? Mỗi khách tối đa 1 đánh giá
@@ -49,6 +52,7 @@ public class ReviewService : IReviewService
 
     public async Task<List<ReviewViewDto>> GetCustomerReviewsAsync(int customerId)
     {
+        await _access.CustomerAsync(customerId);
         await using var context = await _contextFactory.CreateDbContextAsync();
         var reviews = await context.ProductReviews
             .AsNoTracking()
@@ -80,6 +84,7 @@ public class ReviewService : IReviewService
         int page = 1,
         int pageSize = 10)
     {
+        await _access.AdminAsync();
         await using var context = await _contextFactory.CreateDbContextAsync();
         var query = context.ProductReviews
             .AsNoTracking()
@@ -127,6 +132,7 @@ public class ReviewService : IReviewService
 
     public async Task<(bool Success, string Message)> AddReviewAsync(int customerId, int productId, byte rating, string comment)
     {
+        await _access.CustomerAsync(customerId);
         if (rating < 1 || rating > 5)
             return (false, "Số sao đánh giá phải từ 1 đến 5.");
 
@@ -157,6 +163,7 @@ public class ReviewService : IReviewService
 
     public async Task<(bool Success, string Message)> UpdateReviewAsync(int reviewId, int customerId, byte rating, string comment)
     {
+        await _access.CustomerAsync(customerId);
         if (rating < 1 || rating > 5)
             return (false, "Số sao đánh giá phải từ 1 đến 5.");
 
@@ -178,6 +185,7 @@ public class ReviewService : IReviewService
 
     public async Task<(bool Success, string Message)> DeleteReviewByCustomerAsync(int reviewId, int customerId)
     {
+        await _access.CustomerAsync(customerId);
         await using var context = await _contextFactory.CreateDbContextAsync();
         var review = await context.ProductReviews.FindAsync(reviewId);
         if (review == null || review.CustomerId != customerId)
@@ -190,6 +198,7 @@ public class ReviewService : IReviewService
 
     public async Task<(bool Success, string Message)> DeleteReviewByAdminAsync(int reviewId)
     {
+        await _access.AdminAsync();
         await using var context = await _contextFactory.CreateDbContextAsync();
         var review = await context.ProductReviews.FindAsync(reviewId);
         if (review == null)

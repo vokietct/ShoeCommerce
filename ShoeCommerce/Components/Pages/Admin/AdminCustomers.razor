@@ -1,3 +1,4 @@
+@attribute [Authorize(Roles = "Admin,Employee")]
 @page "/admin/customers"
 @layout Layout.AdminLayout
 @inject IUserService UserService
@@ -165,6 +166,10 @@
                             <h6 class="fw-bold text-dark mb-3">
                                 <i class="bi bi-geo-alt me-1 text-danger"></i> Sổ Địa Chỉ Giao Hàng (@detailCustomer.Addresses.Count)
                             </h6>
+                            @if (AuthService.IsAdmin)
+                            {
+                                <a class="btn btn-sm btn-outline-primary mb-3" href="@($"/admin/customers/{detailCustomer.Customer.CustomerId}/addresses")">Quản lý địa chỉ</a>
+                            }
                             @if (!detailCustomer.Addresses.Any())
                             {
                                 <p class="text-secondary small">Khách hàng chưa lưu địa chỉ nào.</p>

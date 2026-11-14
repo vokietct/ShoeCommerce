@@ -1,4 +1,6 @@
+@attribute [Authorize(Roles = "Admin")]
 @page "/admin/stock-documents/new"
+@page "/admin/stock-documents/{DocumentId:int}/edit"
 @layout Layout.AdminLayout
 @inject IInventoryService InventoryService
 @inject ISupplierService SupplierService
@@ -19,7 +21,7 @@
     <div class="d-flex justify-content-between align-items-center">
         <div>
             <h4 class="fw-bold text-dark mb-1">
-                <i class="bi bi-file-earmark-plus me-2 text-primary"></i> Lập Phiếu Kho Mới (Màn hình 25)
+                <i class="bi bi-file-earmark-plus me-2 text-primary"></i> @(DocumentId.HasValue ? "Sửa Phiếu Kho Nháp" : "Lập Phiếu Kho Mới")
             </h4>
             <p class="text-secondary small mb-0">Lập phiếu nhập hàng từ nhà cung cấp hoặc điều chỉnh kho kiểm kê</p>
         </div>
@@ -50,7 +52,7 @@
         <div class="row g-3 mb-4">
             <div class="col-md-4">
                 <label class="form-label small fw-semibold">Loại phiếu kho <span class="text-danger">*</span></label>
-                <select class="form-select" @bind="selectedType">
+                <select class="form-select" @bind="selectedType" disabled="@DocumentId.HasValue">
                     <option value="@StockDocumentType.PurchaseReceipt">Phiếu nhập hàng từ nhà cung cấp</option>
                     <option value="@StockDocumentType.AdjustmentIn">Phiếu nhập điều chỉnh tồn kho</option>
                     <option value="@StockDocumentType.AdjustmentOut">Phiếu xuất điều chỉnh tồn kho</option>
@@ -196,6 +198,7 @@
 </div>
 
 @code {
+    [Parameter] public int? DocumentId { get; set; }
     private StockDocumentType selectedType = StockDocumentType.PurchaseReceipt;
     private int selectedSupplierId = 0;
     private string reason = "";
@@ -215,7 +218,7 @@
     private bool isSubmitting = false;
     private string? errorMessage;
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnParametersSetAsync()
     {
         suppliers = await SupplierService.GetSuppliersAsync();
         allStockVariants = await InventoryService.GetStockVariantsAsync();
@@ -226,6 +229,20 @@
         }
 
         reason = "Nhập hàng bổ sung từ nhà cung cấp";
+        selectedItems = new();
+        if (DocumentId.HasValue)
+        {
+            var doc = await InventoryService.GetStockDocumentDetailAsync(DocumentId.Value);
+            if (doc == null || doc.DocumentStatus != StockDocumentStatus.Draft || doc.OrderId != null)
+            {
+                Navigation.NavigateTo("/admin/stock-documents");
+                return;
+            }
+            selectedType = doc.DocumentType;
+            selectedSupplierId = doc.SupplierId ?? 0;
+            reason = doc.Reason ?? "";
+            selectedItems = doc.Items.Select(i => new CreateStockDocumentItemModel(i.VariantId, i.Quantity, i.UnitCost, i.Note)).ToList();
+        }
     }
 
     private void AddItemToDoc()
@@ -294,7 +311,19 @@
 
         if (AuthService.CurrentUser == null) return;
 
+        if (isSubmitting) return;
         isSubmitting = true;
+        if (DocumentId.HasValue)
+        {
+            var update = await InventoryService.UpdateStockDocumentDraftAsync(DocumentId.Value,
+                selectedType == StockDocumentType.PurchaseReceipt ? selectedSupplierId : null, reason, selectedItems);
+            if (update.Success && confirmImmediately)
+                update = await InventoryService.ConfirmStockDocumentAsync(DocumentId.Value, AuthService.CurrentUser.UserId);
+            isSubmitting = false;
+            if (update.Success) Navigation.NavigateTo("/admin/stock-documents");
+            else errorMessage = update.Message;
+            return;
+        }
         var res = await InventoryService.CreateManualStockDocumentAsync(
             createdByUserId: AuthService.CurrentUser.UserId,
             type: selectedType,

@@ -1,0 +1,7 @@
+@attribute [Authorize(Roles = "Admin")]
+@page "/admin/customers/{CustomerId:int}/addresses"
+@layout Layout.AdminLayout
+<PageTitle>Địa chỉ khách hàng · ShoeStore</PageTitle>
+<a href="/admin/customers" class="btn btn-outline-secondary mb-3">Quay lại khách hàng</a>
+<ShoeCommerce.Components.Shared.AddressBook ManagedCustomerId="CustomerId" />
+@code { [Parameter] public int CustomerId { get; set; } }

@@ -1,0 +1,11 @@
+@page "/access-denied"
+<PageTitle>Không có quyền truy cập · ShoeStore</PageTitle>
+<div class="container py-5">
+    <h1>Không có quyền truy cập</h1>
+    <p>Tài khoản hiện tại không được phép sử dụng chức năng này.</p>
+    <a href="/" class="btn btn-dark">Về cửa hàng</a>
+    <form method="post" action="/account/logout" class="d-inline ms-2" data-enhance="false">
+        <AntiforgeryToken />
+        <button type="submit" class="btn btn-outline-secondary">Đăng xuất</button>
+    </form>
+</div>

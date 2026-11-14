@@ -1,3 +1,4 @@
+using System.Data;
 using Microsoft.EntityFrameworkCore;
 using ShoeCommerce.Data;
 using ShoeCommerce.Models;
@@ -7,10 +8,12 @@ namespace ShoeCommerce.Services;
 public class InventoryService : IInventoryService
 {
     private readonly IDbContextFactory<ShoeStoreDbContext> _contextFactory;
+    private readonly AccessGuard _access;
 
-    public InventoryService(IDbContextFactory<ShoeStoreDbContext> contextFactory)
+    public InventoryService(IDbContextFactory<ShoeStoreDbContext> contextFactory, AccessGuard access)
     {
         _contextFactory = contextFactory;
+        _access = access;
     }
 
     public async Task<List<StockVariantView>> GetStockVariantsAsync(
@@ -19,6 +22,7 @@ public class InventoryService : IInventoryService
         int? categoryId = null,
         int? brandId = null)
     {
+        await _access.StaffAsync();
         await using var context = await _contextFactory.CreateDbContextAsync();
         var query = context.ProductVariants
             .AsNoTracking()
@@ -75,6 +79,7 @@ public class InventoryService : IInventoryService
         int page = 1,
         int pageSize = 10)
     {
+        await _access.AdminAsync();
         await using var context = await _contextFactory.CreateDbContextAsync();
         var query = context.StockDocuments
             .AsNoTracking()
@@ -102,6 +107,7 @@ public class InventoryService : IInventoryService
 
     public async Task<StockDocument?> GetStockDocumentDetailAsync(int documentId)
     {
+        await _access.AdminAsync();
         await using var context = await _contextFactory.CreateDbContextAsync();
         return await context.StockDocuments
             .AsNoTracking()
@@ -123,7 +129,8 @@ public class InventoryService : IInventoryService
         List<CreateStockDocumentItemModel> items,
         bool confirmImmediately = false)
     {
-        if (type == StockDocumentType.OrderIssue || type == StockDocumentType.OrderCancellationReceipt)
+        await _access.AdminAsync(createdByUserId);
+        if (!Enum.IsDefined(type) || type == StockDocumentType.OrderIssue || type == StockDocumentType.OrderCancellationReceipt)
             return (false, "Không được tự lập phiếu tự động liên quan đến đơn hàng.", null);
 
         if (string.IsNullOrWhiteSpace(reason))
@@ -136,7 +143,9 @@ public class InventoryService : IInventoryService
             return (false, "Phiếu nhập hàng yêu cầu phải chọn nhà cung cấp.", null);
 
         await using var context = await _contextFactory.CreateDbContextAsync();
-        using var transaction = await context.Database.BeginTransactionAsync();
+        var validation = await ValidateItemsAsync(context, type, supplierId, items);
+        if (validation != null) return (false, validation, null);
+        using var transaction = await context.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted);
 
         try
         {
@@ -148,7 +157,7 @@ public class InventoryService : IInventoryService
                 _ => "PK"
             };
 
-            var docCode = $"{prefix}-{DateTime.Now:yyMMddHHmmss}{Random.Shared.Next(10, 99)}";
+            var docCode = $"{prefix}-{DateTime.Now:yyMMddHHmmss}{Guid.NewGuid().ToString("N")[..12]}";
 
             var doc = new StockDocument
             {
@@ -210,7 +219,10 @@ public class InventoryService : IInventoryService
         string reason,
         List<CreateStockDocumentItemModel> items)
     {
+        await _access.AdminAsync();
         await using var context = await _contextFactory.CreateDbContextAsync();
+        await using var transaction = await context.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted);
+        await DatabaseLocks.StockDocumentAsync(context, documentId);
         var doc = await context.StockDocuments
             .Include(d => d.Items)
             .FirstOrDefaultAsync(d => d.DocumentId == documentId);
@@ -230,11 +242,14 @@ public class InventoryService : IInventoryService
         if (items == null || !items.Any())
             return (false, "Phiếu kho phải có ít nhất 1 sản phẩm.");
 
+        var validation = await ValidateItemsAsync(context, doc.DocumentType, supplierId, items);
+        if (validation != null) return (false, validation);
         doc.SupplierId = supplierId;
         doc.Reason = reason.Trim();
 
         // Xóa items cũ, thêm items mới
         context.StockDocumentItems.RemoveRange(doc.Items);
+        await context.SaveChangesAsync();
         foreach (var item in items)
         {
             context.StockDocumentItems.Add(new StockDocumentItem
@@ -248,12 +263,16 @@ public class InventoryService : IInventoryService
         }
 
         await context.SaveChangesAsync();
+        await transaction.CommitAsync();
         return (true, "Đã cập nhật phiếu kho nháp thành công!");
     }
 
     public async Task<(bool Success, string Message)> DeleteStockDocumentDraftAsync(int documentId)
     {
+        await _access.AdminAsync();
         await using var context = await _contextFactory.CreateDbContextAsync();
+        await using var transaction = await context.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted);
+        await DatabaseLocks.StockDocumentAsync(context, documentId);
         var doc = await context.StockDocuments
             .Include(d => d.Items)
             .FirstOrDefaultAsync(d => d.DocumentId == documentId);
@@ -271,14 +290,17 @@ public class InventoryService : IInventoryService
         context.StockDocuments.Remove(doc);
         await context.SaveChangesAsync();
 
+        await transaction.CommitAsync();
         return (true, "Đã xóa phiếu kho nháp thành công!");
     }
 
     public async Task<(bool Success, string Message)> ConfirmStockDocumentAsync(int documentId, int confirmedByUserId)
     {
+        await _access.AdminAsync(confirmedByUserId);
         await using var context = await _contextFactory.CreateDbContextAsync();
-        using var transaction = await context.Database.BeginTransactionAsync();
+        using var transaction = await context.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted);
 
+        await DatabaseLocks.StockDocumentAsync(context, documentId);
         var res = await ConfirmDocumentInternalAsync(context, documentId, confirmedByUserId);
         if (!res.Success)
         {
@@ -306,29 +328,22 @@ public class InventoryService : IInventoryService
         if (doc.DocumentStatus != StockDocumentStatus.Draft)
             return (false, "Phiếu này đã được xác nhận trước đó, không thể xác nhận lại.");
 
-        // Áp dụng cập nhật tồn kho
-        foreach (var item in doc.Items)
+        if (doc.OrderId != null || doc.DocumentType is StockDocumentType.OrderIssue or StockDocumentType.OrderCancellationReceipt)
+            return (false, "Không được xác nhận thủ công phiếu tự động theo đơn hàng.");
+        var validation = await ValidateItemsAsync(context, doc.DocumentType, doc.SupplierId,
+            doc.Items.Select(i => new CreateStockDocumentItemModel(i.VariantId, i.Quantity, i.UnitCost, i.Note)).ToList());
+        if (validation != null) return (false, validation);
+
+        foreach (var item in doc.Items.OrderBy(i => i.VariantId))
         {
-            if (item.Variant == null)
-                return (false, "Có biến thể trong phiếu kho không tồn tại.");
-
-            if (doc.DocumentType == StockDocumentType.PurchaseReceipt || doc.DocumentType == StockDocumentType.AdjustmentIn)
-            {
-                // Nhập kho -> Tăng số lượng
-                item.Variant.StockQuantity += item.Quantity;
-                item.Variant.UpdatedAt = DateTime.Now;
-            }
-            else if (doc.DocumentType == StockDocumentType.AdjustmentOut)
-            {
-                // Xuất kho điều chỉnh -> Giảm số lượng (Không cho làm tồn kho âm)
-                if (item.Variant.StockQuantity < item.Quantity)
-                {
-                    return (false, $"Biến thể {item.Variant.Sku} hiện chỉ còn {item.Variant.StockQuantity} trong kho. Không thể xuất điều chỉnh {item.Quantity} vì sẽ làm âm tồn kho.");
-                }
-
-                item.Variant.StockQuantity -= item.Quantity;
-                item.Variant.UpdatedAt = DateTime.Now;
-            }
+            var delta = doc.DocumentType == StockDocumentType.AdjustmentOut ? -item.Quantity : item.Quantity;
+            var changed = await context.ProductVariants
+                .Where(v => v.VariantId == item.VariantId && (long)v.StockQuantity + delta >= 0 && (long)v.StockQuantity + delta <= int.MaxValue)
+                .ExecuteUpdateAsync(set => set
+                    .SetProperty(v => v.StockQuantity, v => v.StockQuantity + delta)
+                    .SetProperty(v => v.UpdatedAt, DateTime.Now));
+            if (changed != 1)
+                return (false, "Tồn kho không đủ hoặc vượt giới hạn. Phiếu chưa được xác nhận.");
         }
 
         doc.DocumentStatus = StockDocumentStatus.Confirmed;
@@ -338,5 +353,24 @@ public class InventoryService : IInventoryService
         await context.SaveChangesAsync();
         return (true, "Xác nhận phiếu kho thành công và đã cập nhật tồn kho.");
     }
+    private static async Task<string?> ValidateItemsAsync(ShoeStoreDbContext context, StockDocumentType type,
+        int? supplierId, List<CreateStockDocumentItemModel> items)
+    {
+        if (type is not (StockDocumentType.PurchaseReceipt or StockDocumentType.AdjustmentIn or StockDocumentType.AdjustmentOut))
+            return "Loại phiếu không hợp lệ.";
+        if (items.Count == 0 || items.Any(i => i.Quantity <= 0 || i.UnitCost < 0))
+            return "Phiếu phải có sản phẩm, số lượng dương và giá vốn không âm.";
+        var ids = items.Select(i => i.VariantId).Distinct().ToList();
+        if (ids.Count != items.Count) return "Không được lặp lại biến thể trong một phiếu.";
+        if (await context.ProductVariants.CountAsync(v => ids.Contains(v.VariantId)) != ids.Count)
+            return "Có biến thể không tồn tại.";
+        if (type == StockDocumentType.PurchaseReceipt && (!supplierId.HasValue ||
+            !await context.Suppliers.AnyAsync(s => s.SupplierId == supplierId && s.IsCooperating)))
+            return "Vui lòng chọn nhà cung cấp đang hợp tác.";
+        if (supplierId.HasValue && !await context.Suppliers.AnyAsync(s => s.SupplierId == supplierId))
+            return "Nhà cung cấp không tồn tại.";
+        return null;
+    }
+
 }
 

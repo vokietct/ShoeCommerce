@@ -21,12 +21,15 @@
             </div>
         }
 
-        <EditForm Model="this" FormName="admin-login" OnValidSubmit="HandleAdminLogin">
+        <form method="post" action="/account/login" data-enhance="false">
+            <AntiforgeryToken />
+            <input type="hidden" name="returnUrl" value="@ReturnUrl" />
+            <input type="hidden" name="portal" value="admin" />
             <div class="mb-3">
                 <label class="form-label small fw-semibold">Email tài khoản</label>
                 <div class="input-group">
                     <span class="input-group-text bg-light text-secondary"><i class="bi bi-person-badge"></i></span>
-                    <input type="email" class="form-control" placeholder="admin@shoestore.vn" @bind="email" required />
+                    <input type="email" class="form-control" placeholder="admin@shoestore.vn" name="email" autocomplete="email" required />
                 </div>
             </div>
 
@@ -34,36 +37,14 @@
                 <label class="form-label small fw-semibold">Mật khẩu quản trị</label>
                 <div class="input-group">
                     <span class="input-group-text bg-light text-secondary"><i class="bi bi-key"></i></span>
-                    <input type="password" class="form-control" placeholder="••••••••" @bind="password" required />
+                    <input type="password" class="form-control" placeholder="••••••••" name="password" autocomplete="current-password" required />
                 </div>
             </div>
 
-            <button type="submit" class="btn btn-dark w-100 py-2 rounded-pill fw-bold shadow-sm" disabled="@isLoading">
-                @if (isLoading)
-                {
-                    <span class="spinner-border spinner-border-sm me-2"></span>
-                    <span>Đang xác thực quyền...</span>
-                }
-                else
-                {
-                    <i class="bi bi-box-arrow-in-right me-1"></i>
-                    <span>Đăng Nhập Quản Trị</span>
-                }
+            <button type="submit" class="btn btn-dark w-100 py-2 rounded-pill fw-bold shadow-sm">
+                Đăng Nhập Quản Trị
             </button>
-        </EditForm>
-
-        <!-- Test Credentials Box -->
-        <div class="p-3 bg-light rounded-3 small text-secondary mt-4 border border-secondary-subtle">
-            <div class="fw-bold text-dark mb-1"><i class="bi bi-key-fill me-1"></i> Tài khoản nội bộ mẫu:</div>
-            <div class="mb-1">
-                <strong>1. Quản lý (Admin):</strong><br/>
-                Email: <code class="text-primary">admin@shoestore.vn</code> | MK: <code class="text-primary">admin123</code>
-            </div>
-            <div>
-                <strong>2. Nhân viên (Employee):</strong><br/>
-                Email: <code class="text-primary">linh@shoestore.com</code> | MK: <code class="text-primary">employee123</code>
-            </div>
-        </div>
+        </form>
 
         <div class="text-center mt-3 pt-3 border-top text-secondary small">
             <a href="/" class="text-secondary text-decoration-none">
@@ -74,34 +55,8 @@
 </div>
 
 @code {
-    private string email = "admin@shoestore.vn";
-    private string password = "admin123";
-    private bool isLoading = false;
-    private string? errorMessage;
-
-    protected override void OnInitialized()
-    {
-        if (AuthService.IsAuthenticated && AuthService.IsAdminOrEmployee)
-        {
-            Navigation.NavigateTo("/admin");
-        }
-    }
-
-    private async Task HandleAdminLogin()
-    {
-        errorMessage = null;
-        isLoading = true;
-
-        var res = await AuthService.AdminLoginAsync(email, password);
-        isLoading = false;
-
-        if (res.Success)
-        {
-            Navigation.NavigateTo("/admin");
-        }
-        else
-        {
-            errorMessage = res.Message;
-        }
-    }
+    [SupplyParameterFromQuery(Name = "returnUrl")]
+    public string? ReturnUrl { get; set; }
+    [SupplyParameterFromQuery(Name = "error")]
+    public string? errorMessage { get; set; }
 }

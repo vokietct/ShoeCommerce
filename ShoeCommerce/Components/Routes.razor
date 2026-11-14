@@ -1,8 +1,27 @@
-﻿@rendermode InteractiveServer
+@rendermode InteractiveServer
 
-<Router AppAssembly="typeof(Program).Assembly" NotFoundPage="typeof(Pages.NotFound)">
+<Router AppAssembly="typeof(Program).Assembly">
     <Found Context="routeData">
-        <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)" />
+        <ErrorBoundary @key="routeData">
+            <ChildContent>
+                <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)">
+                    <NotAuthorized><RedirectToLogin /></NotAuthorized>
+                </AuthorizeRouteView>
+            </ChildContent>
+            <ErrorContent Context="error">
+                <div class="container py-5" role="alert">
+                    <h1>Không thể thực hiện thao tác</h1>
+                    <p>@(error is UnauthorizedAccessException ? error.Message : "Có lỗi xảy ra. Vui lòng tải lại trang và thử lại.")</p>
+                    <a href="/login" data-enhance-nav="false" class="btn btn-dark">Đăng nhập lại</a>
+                    <a href="/" data-enhance-nav="false" class="btn btn-outline-secondary ms-2">Về cửa hàng</a>
+                </div>
+            </ErrorContent>
+        </ErrorBoundary>
         <FocusOnNavigate RouteData="routeData" Selector="h1" />
     </Found>
+    <NotFound>
+        <LayoutView Layout="typeof(Layout.MainLayout)">
+            <ShoeCommerce.Components.Pages.NotFound />
+        </LayoutView>
+    </NotFound>
 </Router>

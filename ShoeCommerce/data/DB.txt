@@ -122,6 +122,7 @@ CREATE TABLE customer_addresses (
     CONSTRAINT fk_addresses_customer
         FOREIGN KEY (customer_id)
         REFERENCES customers(customer_id)
+        -- MySQL không cho CASCADE trên cột dùng cho generated column STORED
         ON DELETE RESTRICT
 ) ENGINE = InnoDB;
 

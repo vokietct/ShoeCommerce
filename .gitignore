@@ -1,0 +1,7 @@
+**/bin/
+**/obj/
+.tmp/
+artifacts/
+**/appsettings.Local.json
+**/TestResults/
+**/node_modules/

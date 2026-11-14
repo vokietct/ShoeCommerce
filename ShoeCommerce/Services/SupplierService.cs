@@ -7,14 +7,17 @@ namespace ShoeCommerce.Services;
 public class SupplierService : ISupplierService
 {
     private readonly IDbContextFactory<ShoeStoreDbContext> _contextFactory;
+    private readonly AccessGuard _access;
 
-    public SupplierService(IDbContextFactory<ShoeStoreDbContext> contextFactory)
+    public SupplierService(IDbContextFactory<ShoeStoreDbContext> contextFactory, AccessGuard access)
     {
         _contextFactory = contextFactory;
+        _access = access;
     }
 
     public async Task<List<Supplier>> GetSuppliersAsync(string? searchTerm = null)
     {
+        await _access.AdminAsync();
         await using var context = await _contextFactory.CreateDbContextAsync();
         var query = context.Suppliers
             .AsNoTracking()
@@ -32,6 +35,7 @@ public class SupplierService : ISupplierService
 
     public async Task<Supplier?> GetSupplierDetailAsync(int supplierId)
     {
+        await _access.AdminAsync();
         await using var context = await _contextFactory.CreateDbContextAsync();
         return await context.Suppliers
             .AsNoTracking()
@@ -44,6 +48,7 @@ public class SupplierService : ISupplierService
 
     public async Task<(bool Success, string Message, int? SupplierId)> CreateSupplierAsync(Supplier supplier)
     {
+        await _access.AdminAsync();
         if (string.IsNullOrWhiteSpace(supplier.SupplierName))
             return (false, "Tên nhà cung cấp không được để trống.", null);
 
@@ -59,6 +64,7 @@ public class SupplierService : ISupplierService
 
     public async Task<(bool Success, string Message)> UpdateSupplierAsync(Supplier supplier)
     {
+        await _access.AdminAsync();
         if (string.IsNullOrWhiteSpace(supplier.SupplierName))
             return (false, "Tên nhà cung cấp không được để trống.");
 
@@ -80,6 +86,7 @@ public class SupplierService : ISupplierService
 
     public async Task<(bool Success, string Message)> ToggleCooperatingAsync(int supplierId)
     {
+        await _access.AdminAsync();
         await using var context = await _contextFactory.CreateDbContextAsync();
         var existing = await context.Suppliers.FindAsync(supplierId);
         if (existing == null)
@@ -94,6 +101,7 @@ public class SupplierService : ISupplierService
 
     public async Task<(bool Success, string Message)> DeleteSupplierAsync(int supplierId)
     {
+        await _access.AdminAsync();
         await using var context = await _contextFactory.CreateDbContextAsync();
         var existing = await context.Suppliers
             .Include(s => s.Products)

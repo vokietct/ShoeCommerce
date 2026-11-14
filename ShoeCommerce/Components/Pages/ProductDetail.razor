@@ -371,7 +371,7 @@
                 UpdateColorsForSize();
             }
 
-            averageRating = product.Reviews.Any() ? product.Reviews.Average(r => (double)r.Rating) : 5.0;
+            averageRating = product.Reviews.Any() ? product.Reviews.Average(r => (double)r.Rating) : 0.0;
 
             if (AuthService.IsAuthenticated && AuthService.IsCustomer && AuthService.CurrentUser != null)
             {

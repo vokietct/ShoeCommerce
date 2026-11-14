@@ -7,10 +7,12 @@ namespace ShoeCommerce.Services;
 public class CategoryBrandService : ICategoryBrandService
 {
     private readonly IDbContextFactory<ShoeStoreDbContext> _contextFactory;
+    private readonly AccessGuard _access;
 
-    public CategoryBrandService(IDbContextFactory<ShoeStoreDbContext> contextFactory)
+    public CategoryBrandService(IDbContextFactory<ShoeStoreDbContext> contextFactory, AccessGuard access)
     {
         _contextFactory = contextFactory;
+        _access = access;
     }
 
     public async Task<List<Category>> GetAllCategoriesAsync()
@@ -35,6 +37,7 @@ public class CategoryBrandService : ICategoryBrandService
 
     public async Task<(bool Success, string Message, int? CategoryId)> CreateCategoryAsync(string name, string? description)
     {
+        await _access.AdminAsync();
         if (string.IsNullOrWhiteSpace(name))
             return (false, "Tên danh mục không được để trống.", null);
 
@@ -56,6 +59,7 @@ public class CategoryBrandService : ICategoryBrandService
 
     public async Task<(bool Success, string Message)> UpdateCategoryAsync(int id, string name, string? description)
     {
+        await _access.AdminAsync();
         if (string.IsNullOrWhiteSpace(name))
             return (false, "Tên danh mục không được để trống.");
 
@@ -77,6 +81,7 @@ public class CategoryBrandService : ICategoryBrandService
 
     public async Task<(bool Success, string Message)> DeleteCategoryAsync(int id)
     {
+        await _access.AdminAsync();
         await using var context = await _contextFactory.CreateDbContextAsync();
         var cat = await context.Categories.Include(c => c.Products).FirstOrDefaultAsync(c => c.CategoryId == id);
         if (cat == null)
@@ -93,6 +98,7 @@ public class CategoryBrandService : ICategoryBrandService
 
     public async Task<(bool Success, string Message, int? BrandId)> CreateBrandAsync(string name, string? description)
     {
+        await _access.AdminAsync();
         if (string.IsNullOrWhiteSpace(name))
             return (false, "Tên thương hiệu không được để trống.", null);
 
@@ -114,6 +120,7 @@ public class CategoryBrandService : ICategoryBrandService
 
     public async Task<(bool Success, string Message)> UpdateBrandAsync(int id, string name, string? description)
     {
+        await _access.AdminAsync();
         if (string.IsNullOrWhiteSpace(name))
             return (false, "Tên thương hiệu không được để trống.");
 
@@ -135,6 +142,7 @@ public class CategoryBrandService : ICategoryBrandService
 
     public async Task<(bool Success, string Message)> DeleteBrandAsync(int id)
     {
+        await _access.AdminAsync();
         await using var context = await _contextFactory.CreateDbContextAsync();
         var brand = await context.Brands.Include(b => b.Products).FirstOrDefaultAsync(b => b.BrandId == id);
         if (brand == null)

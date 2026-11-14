@@ -92,9 +92,9 @@
                             </li>
                             <li><hr class="dropdown-divider"></li>
                             <li>
-                                <button class="dropdown-item text-danger py-2" @onclick="HandleLogout">
+                                <form method="post" action="/account/logout" data-enhance="false"><AntiforgeryToken /><button class="dropdown-item text-danger py-2" type="submit">
                                     <i class="bi bi-box-arrow-right me-2"></i> Đăng xuất
-                                </button>
+                                </button></form>
                             </li>
                         </ul>
                     </div>
@@ -108,6 +108,11 @@
                 }
             </div>
         </div>
+        <nav class="container d-flex d-lg-none gap-3 pb-2 overflow-auto" aria-label="Menu cửa hàng">
+            <a href="/products" class="text-nowrap">Sản phẩm</a>
+            <a href="/orders" class="text-nowrap">Đơn hàng</a>
+            <a href="/profile" class="text-nowrap">Tài khoản</a>
+        </nav>
     </header>
 
     <!-- Main Content -->
@@ -188,14 +193,19 @@
     protected override async Task OnInitializedAsync()
     {
         AuthService.OnAuthStateChanged += OnAuthChanged;
+        CartService.OnCartChanged += OnAuthChanged;
+        Navigation.LocationChanged += OnLocationChanged;
         await UpdateCartCount();
     }
 
-    private async void OnAuthChanged()
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e) => OnAuthChanged();
+
+    private void OnAuthChanged() => _ = InvokeAsync(async () =>
     {
-        await UpdateCartCount();
-        await InvokeAsync(StateHasChanged);
-    }
+        try { await UpdateCartCount(); }
+        catch (UnauthorizedAccessException) { cartItemCount = 0; }
+        StateHasChanged();
+    });
 
     private async Task UpdateCartCount()
     {
@@ -217,14 +227,11 @@
         }
     }
 
-    private async Task HandleLogout()
-    {
-        await AuthService.LogoutAsync();
-        Navigation.NavigateTo("/");
-    }
 
     public void Dispose()
     {
         AuthService.OnAuthStateChanged -= OnAuthChanged;
+        CartService.OnCartChanged -= OnAuthChanged;
+        Navigation.LocationChanged -= OnLocationChanged;
     }
 }

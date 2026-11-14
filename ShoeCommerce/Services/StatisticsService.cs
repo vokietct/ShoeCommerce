@@ -7,16 +7,19 @@ namespace ShoeCommerce.Services;
 public class StatisticsService : IStatisticsService
 {
     private readonly IDbContextFactory<ShoeStoreDbContext> _contextFactory;
+    private readonly AccessGuard _access;
     private readonly IInventoryService _inventoryService;
 
-    public StatisticsService(IDbContextFactory<ShoeStoreDbContext> contextFactory, IInventoryService inventoryService)
+    public StatisticsService(IDbContextFactory<ShoeStoreDbContext> contextFactory, IInventoryService inventoryService, AccessGuard access)
     {
         _contextFactory = contextFactory;
+        _access = access;
         _inventoryService = inventoryService;
     }
 
     public async Task<DashboardKpiDto> GetDashboardKpisAsync()
     {
+        await _access.StaffAsync();
         await using var context = await _contextFactory.CreateDbContextAsync();
 
         // Doanh thu: chỉ tính đơn Hoàn tất và Đã thanh toán
@@ -53,6 +56,7 @@ public class StatisticsService : IStatisticsService
 
     public async Task<List<RevenueByDateDto>> GetRevenueByDateAsync(DateTime fromDate, DateTime toDate)
     {
+        await _access.AdminAsync();
         await using var context = await _contextFactory.CreateDbContextAsync();
 
         var endOfDay = toDate.Date.AddDays(1).AddTicks(-1);
@@ -119,6 +123,7 @@ public class StatisticsService : IStatisticsService
 
     public async Task<List<StatusCountDto>> GetOrderStatusBreakdownAsync()
     {
+        await _access.AdminAsync();
         await using var context = await _contextFactory.CreateDbContextAsync();
 
         var orders = await context.Orders
@@ -140,6 +145,7 @@ public class StatisticsService : IStatisticsService
 
     public async Task<List<TopProductDto>> GetTopSellingProductsAsync(int top = 5)
     {
+        await _access.AdminAsync();
         await using var context = await _contextFactory.CreateDbContextAsync();
 
         // Thống kê sản phẩm bán chạy theo số lượng bán từ các đơn Hoàn tất
@@ -178,6 +184,7 @@ public class StatisticsService : IStatisticsService
 
     public async Task<List<StockVariantView>> GetLowAndOutOfStockVariantsAsync()
     {
+        await _access.StaffAsync();
         return await _inventoryService.GetStockVariantsAsync(lowStockOnly: true);
     }
 }

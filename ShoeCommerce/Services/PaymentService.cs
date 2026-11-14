@@ -1,3 +1,4 @@
+using System.Data;
 using Microsoft.EntityFrameworkCore;
 using ShoeCommerce.Data;
 using ShoeCommerce.Models;
@@ -7,10 +8,12 @@ namespace ShoeCommerce.Services;
 public class PaymentService : IPaymentService
 {
     private readonly IDbContextFactory<ShoeStoreDbContext> _contextFactory;
+    private readonly AccessGuard _access;
 
-    public PaymentService(IDbContextFactory<ShoeStoreDbContext> contextFactory)
+    public PaymentService(IDbContextFactory<ShoeStoreDbContext> contextFactory, AccessGuard access)
     {
         _contextFactory = contextFactory;
+        _access = access;
     }
 
     public async Task<(List<PaymentViewDto> Items, int TotalCount)> GetPaymentsAsync(
@@ -20,6 +23,7 @@ public class PaymentService : IPaymentService
         int page = 1,
         int pageSize = 10)
     {
+        await _access.StaffAsync();
         await using var context = await _contextFactory.CreateDbContextAsync();
         var query = context.Payments
             .AsNoTracking()
@@ -72,7 +76,11 @@ public class PaymentService : IPaymentService
         string? transferReference,
         int confirmedByUserId)
     {
+        await _access.StaffAsync(confirmedByUserId);
         await using var context = await _contextFactory.CreateDbContextAsync();
+        await using var transaction = await context.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted);
+        var orderId = await context.Payments.Where(p => p.PaymentId == paymentId).Select(p => p.OrderId).FirstOrDefaultAsync();
+        await DatabaseLocks.OrderAsync(context, orderId);
         var payment = await context.Payments
             .Include(p => p.Order)
             .FirstOrDefaultAsync(p => p.PaymentId == paymentId);
@@ -80,6 +88,10 @@ public class PaymentService : IPaymentService
         if (payment == null)
             return (false, "Không tìm thấy bản ghi thanh toán.");
 
+        if (payment.PaymentMethod != PaymentMethod.BankTransfer)
+            return (false, "COD chỉ được xác nhận đã thu tiền khi hoàn tất giao hàng.");
+        if (payment.Order == null || payment.Order.OrderStatus == OrderStatus.Cancelled)
+            return (false, "Đơn hàng đã hủy hoặc không tồn tại.");
         if (payment.PaymentStatus == PaymentStatus.Paid)
             return (false, "Khoản thanh toán này đã được xác nhận trước đó.");
 
@@ -104,6 +116,7 @@ public class PaymentService : IPaymentService
         });
 
         await context.SaveChangesAsync();
+        await transaction.CommitAsync();
         return (true, "Xác nhận thanh toán chuyển khoản thành công!");
     }
 
@@ -111,7 +124,11 @@ public class PaymentService : IPaymentService
         int orderId,
         PaymentMethod newMethod)
     {
+        await _access.StaffAsync();
         await using var context = await _contextFactory.CreateDbContextAsync();
+        if (!Enum.IsDefined(newMethod)) return (false, "Phương thức thanh toán không hợp lệ.");
+        await using var transaction = await context.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted);
+        await DatabaseLocks.OrderAsync(context, orderId);
         var order = await context.Orders
             .Include(o => o.Payment)
             .FirstOrDefaultAsync(o => o.OrderId == orderId);

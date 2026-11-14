@@ -1,3 +1,5 @@
+using System.Data;
+using System.ComponentModel.DataAnnotations;
 using Microsoft.EntityFrameworkCore;
 using ShoeCommerce.Data;
 using ShoeCommerce.Models;
@@ -7,14 +9,17 @@ namespace ShoeCommerce.Services;
 public class UserService : IUserService
 {
     private readonly IDbContextFactory<ShoeStoreDbContext> _contextFactory;
+    private readonly AccessGuard _access;
 
-    public UserService(IDbContextFactory<ShoeStoreDbContext> contextFactory)
+    public UserService(IDbContextFactory<ShoeStoreDbContext> contextFactory, AccessGuard access)
     {
         _contextFactory = contextFactory;
+        _access = access;
     }
 
     public async Task<List<User>> GetEmployeesAsync(string? searchTerm = null)
     {
+        await _access.AdminAsync();
         await using var context = await _contextFactory.CreateDbContextAsync();
         var query = context.Users
             .AsNoTracking()
@@ -39,14 +44,19 @@ public class UserService : IUserService
         string password,
         DateOnly? hireDate)
     {
+        await _access.AdminAsync();
         if (string.IsNullOrWhiteSpace(fullName) || string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(phone) || string.IsNullOrWhiteSpace(password))
             return (false, "Vui lòng điền đầy đủ họ tên, email, số điện thoại và mật khẩu.", null);
+
+        if (password.Length < 6 || password.Length > 72 || !new EmailAddressAttribute().IsValid(email.Trim()))
+            return (false, "Email không hợp lệ hoặc mật khẩu không đủ 6–72 ký tự.", null);
 
         await using var context = await _contextFactory.CreateDbContextAsync();
         var exists = await context.Users.AnyAsync(u => u.Email.ToLower() == email.Trim().ToLower());
         if (exists)
             return (false, "Email này đã tồn tại trong hệ thống.", null);
 
+        await using var transaction = await context.Database.BeginTransactionAsync();
         var user = new User
         {
             FullName = fullName.Trim(),
@@ -69,11 +79,13 @@ public class UserService : IUserService
         });
 
         await context.SaveChangesAsync();
+        await transaction.CommitAsync();
         return (true, "Tạo tài khoản nhân viên thành công!", user.UserId);
     }
 
     public async Task<(bool Success, string Message)> UpdateEmployeeAsync(int userId, string fullName, string phone, DateOnly? hireDate)
     {
+        await _access.AdminAsync();
         if (string.IsNullOrWhiteSpace(fullName) || string.IsNullOrWhiteSpace(phone))
             return (false, "Họ tên và số điện thoại không được để trống.");
 
@@ -100,11 +112,13 @@ public class UserService : IUserService
 
     public async Task<(bool Success, string Message)> ToggleUserActiveAsync(int userId)
     {
+        await _access.AdminAsync();
         await using var context = await _contextFactory.CreateDbContextAsync();
         var user = await context.Users.FindAsync(userId);
         if (user == null)
             return (false, "Không tìm thấy người dùng.");
 
+        if (user.RoleId == 1) return (false, "Không thể khóa tài khoản quản lý tại chức năng này.");
         user.IsActive = !user.IsActive;
         user.UpdatedAt = DateTime.Now;
         await context.SaveChangesAsync();
@@ -115,6 +129,7 @@ public class UserService : IUserService
 
     public async Task<(bool Success, string Message)> DeleteEmployeeAsync(int userId)
     {
+        await _access.AdminAsync();
         await using var context = await _contextFactory.CreateDbContextAsync();
         var user = await context.Users
             .Include(u => u.Employee)
@@ -144,6 +159,7 @@ public class UserService : IUserService
 
     public async Task<List<User>> GetCustomersAsync(string? searchTerm = null)
     {
+        await _access.StaffAsync();
         await using var context = await _contextFactory.CreateDbContextAsync();
         var query = context.Users
             .AsNoTracking()
@@ -165,6 +181,7 @@ public class UserService : IUserService
 
     public async Task<CustomerDetailDto?> GetCustomerDetailAsync(int customerId)
     {
+        await _access.StaffAsync();
         await using var context = await _contextFactory.CreateDbContextAsync();
         var customer = await context.Customers
             .AsNoTracking()
@@ -197,14 +214,19 @@ public class UserService : IUserService
         string phone,
         string password)
     {
+        await _access.AdminAsync();
         if (string.IsNullOrWhiteSpace(fullName) || string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(phone) || string.IsNullOrWhiteSpace(password))
             return (false, "Vui lòng nhập đầy đủ thông tin.", null);
+
+        if (password.Length < 6 || password.Length > 72 || !new EmailAddressAttribute().IsValid(email.Trim()))
+            return (false, "Email không hợp lệ hoặc mật khẩu không đủ 6–72 ký tự.", null);
 
         await using var context = await _contextFactory.CreateDbContextAsync();
         var exists = await context.Users.AnyAsync(u => u.Email.ToLower() == email.Trim().ToLower());
         if (exists)
             return (false, "Email này đã tồn tại trong hệ thống.", null);
 
+        await using var transaction = await context.Database.BeginTransactionAsync();
         var user = new User
         {
             FullName = fullName.Trim(),
@@ -231,11 +253,13 @@ public class UserService : IUserService
         });
 
         await context.SaveChangesAsync();
+        await transaction.CommitAsync();
         return (true, "Thêm khách hàng thành công!", customer.CustomerId);
     }
 
     public async Task<(bool Success, string Message)> UpdateCustomerByAdminAsync(int customerId, string fullName, string phone)
     {
+        await _access.AdminAsync();
         if (string.IsNullOrWhiteSpace(fullName) || string.IsNullOrWhiteSpace(phone))
             return (false, "Họ tên và số điện thoại không được để trống.");
 
@@ -254,6 +278,7 @@ public class UserService : IUserService
 
     public async Task<(bool Success, string Message)> DeleteCustomerAsync(int customerId)
     {
+        await _access.AdminAsync();
         await using var context = await _contextFactory.CreateDbContextAsync();
         var customer = await context.Customers
             .Include(c => c.User)
@@ -298,6 +323,7 @@ public class UserService : IUserService
 
     public async Task<List<CustomerAddress>> GetCustomerAddressesAsync(int customerId)
     {
+        await _access.CustomerAsync(customerId, allowStaff: true);
         await using var context = await _contextFactory.CreateDbContextAsync();
         return await context.CustomerAddresses
             .AsNoTracking()
@@ -314,10 +340,13 @@ public class UserService : IUserService
         string addressLine,
         bool isDefault)
     {
+        await _access.CustomerAsync(customerId, allowAdmin: true);
         if (string.IsNullOrWhiteSpace(receiverName) || string.IsNullOrWhiteSpace(phone) || string.IsNullOrWhiteSpace(addressLine))
             return (false, "Vui lòng điền đầy đủ người nhận, số điện thoại và địa chỉ.", null);
 
         await using var context = await _contextFactory.CreateDbContextAsync();
+        await using var transaction = await context.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted);
+        await DatabaseLocks.CustomerAsync(context, customerId);
 
         // Nếu đây là địa chỉ đầu tiên của khách, tự động đặt làm mặc định
         var count = await context.CustomerAddresses.CountAsync(a => a.CustomerId == customerId);
@@ -327,6 +356,7 @@ public class UserService : IUserService
         {
             var existingDefaults = await context.CustomerAddresses.Where(a => a.CustomerId == customerId && a.IsDefault).ToListAsync();
             foreach (var d in existingDefaults) d.IsDefault = false;
+            await context.SaveChangesAsync();
         }
 
         var addr = new CustomerAddress
@@ -343,6 +373,7 @@ public class UserService : IUserService
         context.CustomerAddresses.Add(addr);
         await context.SaveChangesAsync();
 
+        await transaction.CommitAsync();
         return (true, "Thêm địa chỉ thành công!", addr.AddressId);
     }
 
@@ -354,10 +385,13 @@ public class UserService : IUserService
         string addressLine,
         bool isDefault)
     {
+        await _access.CustomerAsync(customerId, allowAdmin: true);
         if (string.IsNullOrWhiteSpace(receiverName) || string.IsNullOrWhiteSpace(phone) || string.IsNullOrWhiteSpace(addressLine))
             return (false, "Vui lòng điền đầy đủ người nhận, số điện thoại và địa chỉ.");
 
         await using var context = await _contextFactory.CreateDbContextAsync();
+        await using var transaction = await context.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted);
+        await DatabaseLocks.CustomerAsync(context, customerId);
         var addr = await context.CustomerAddresses.FirstOrDefaultAsync(a => a.AddressId == addressId && a.CustomerId == customerId);
         if (addr == null)
             return (false, "Không tìm thấy địa chỉ.");
@@ -366,21 +400,26 @@ public class UserService : IUserService
         {
             var otherDefaults = await context.CustomerAddresses.Where(a => a.CustomerId == customerId && a.AddressId != addressId && a.IsDefault).ToListAsync();
             foreach (var d in otherDefaults) d.IsDefault = false;
+            await context.SaveChangesAsync();
         }
 
         addr.ReceiverName = receiverName.Trim();
         addr.Phone = phone.Trim();
         addr.AddressLine = addressLine.Trim();
-        addr.IsDefault = isDefault;
+        addr.IsDefault = isDefault || addr.IsDefault;
         addr.UpdatedAt = DateTime.Now;
 
         await context.SaveChangesAsync();
+        await transaction.CommitAsync();
         return (true, "Cập nhật địa chỉ thành công!");
     }
 
     public async Task<(bool Success, string Message)> DeleteAddressAsync(int customerId, int addressId)
     {
+        await _access.CustomerAsync(customerId, allowAdmin: true);
         await using var context = await _contextFactory.CreateDbContextAsync();
+        await using var transaction = await context.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted);
+        await DatabaseLocks.CustomerAsync(context, customerId);
         var addr = await context.CustomerAddresses.FirstOrDefaultAsync(a => a.AddressId == addressId && a.CustomerId == customerId);
         if (addr == null)
             return (false, "Không tìm thấy địa chỉ.");
@@ -400,24 +439,28 @@ public class UserService : IUserService
             }
         }
 
+        await transaction.CommitAsync();
         return (true, "Xóa địa chỉ thành công!");
     }
 
     public async Task<(bool Success, string Message)> SetDefaultAddressAsync(int customerId, int addressId)
     {
+        await _access.CustomerAsync(customerId, allowAdmin: true);
         await using var context = await _contextFactory.CreateDbContextAsync();
+        await using var transaction = await context.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted);
+        await DatabaseLocks.CustomerAsync(context, customerId);
         var addresses = await context.CustomerAddresses.Where(a => a.CustomerId == customerId).ToListAsync();
         var target = addresses.FirstOrDefault(a => a.AddressId == addressId);
         if (target == null)
             return (false, "Không tìm thấy địa chỉ.");
 
-        foreach (var a in addresses)
-        {
-            a.IsDefault = (a.AddressId == addressId);
-            a.UpdatedAt = DateTime.Now;
-        }
+        foreach (var a in addresses) a.IsDefault = false;
+        await context.SaveChangesAsync();
+        target.IsDefault = true;
+        target.UpdatedAt = DateTime.Now;
 
         await context.SaveChangesAsync();
+        await transaction.CommitAsync();
         return (true, "Đã đặt làm địa chỉ giao hàng mặc định!");
     }
 }

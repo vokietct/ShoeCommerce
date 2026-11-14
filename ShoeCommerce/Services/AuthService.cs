@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
+using System.ComponentModel.DataAnnotations;
 using ShoeCommerce.Data;
 using ShoeCommerce.Models;
 
@@ -8,10 +10,13 @@ public class AuthService : IAuthService
 {
     private readonly IDbContextFactory<ShoeStoreDbContext> _contextFactory;
     private UserSession? _currentUser;
+    private string? _sessionStamp;
 
-    public AuthService(IDbContextFactory<ShoeStoreDbContext> contextFactory)
+    public AuthService(IDbContextFactory<ShoeStoreDbContext> contextFactory, IHttpContextAccessor httpContextAccessor)
     {
         _contextFactory = contextFactory;
+        _currentUser = SessionSecurity.Read(httpContextAccessor.HttpContext?.User);
+        _sessionStamp = httpContextAccessor.HttpContext?.User.FindFirstValue(SessionSecurity.StampClaim);
     }
 
     public UserSession? CurrentUser => _currentUser;
@@ -43,6 +48,7 @@ public class AuthService : IAuthService
             return (false, "Tài khoản này là tài khoản nội bộ, vui lòng đăng nhập tại trang quản trị.");
 
         _currentUser = new UserSession(user.UserId, user.Email, user.FullName, user.Phone, user.RoleId, user.Role?.RoleName ?? "Customer");
+        _sessionStamp = SessionSecurity.Stamp(user.PasswordHash);
         OnAuthStateChanged?.Invoke();
         return (true, "Đăng nhập thành công!");
     }
@@ -67,6 +73,7 @@ public class AuthService : IAuthService
             return (false, "Tài khoản không có quyền truy cập trang quản trị.");
 
         _currentUser = new UserSession(user.UserId, user.Email, user.FullName, user.Phone, user.RoleId, user.Role?.RoleName ?? "Admin");
+        _sessionStamp = SessionSecurity.Stamp(user.PasswordHash);
         OnAuthStateChanged?.Invoke();
         return (true, "Đăng nhập quản trị thành công!");
     }
@@ -82,10 +89,16 @@ public class AuthService : IAuthService
         if (password.Length < 6)
             return (false, "Mật khẩu phải có ít nhất 6 ký tự.");
 
+        if (password.Length > 72 || fullName.Trim().Length > 150 || phone.Trim().Length > 20 ||
+            email.Trim().Length > 255 || !new EmailAddressAttribute().IsValid(email.Trim()))
+            return (false, "Email không hợp lệ hoặc thông tin vượt quá độ dài cho phép (mật khẩu tối đa 72 ký tự).");
+
         await using var context = await _contextFactory.CreateDbContextAsync();
         var emailExists = await context.Users.AnyAsync(u => u.Email.ToLower() == email.Trim().ToLower());
         if (emailExists)
             return (false, "Email này đã được sử dụng bởi một tài khoản khác.");
+
+        await using var transaction = await context.Database.BeginTransactionAsync();
 
         var newUser = new User
         {
@@ -119,7 +132,9 @@ public class AuthService : IAuthService
         await context.SaveChangesAsync();
 
         // Tự động đăng nhập
+        await transaction.CommitAsync();
         _currentUser = new UserSession(newUser.UserId, newUser.Email, newUser.FullName, newUser.Phone, newUser.RoleId, "Customer");
+        _sessionStamp = SessionSecurity.Stamp(newUser.PasswordHash);
         OnAuthStateChanged?.Invoke();
 
         return (true, "Đăng ký tài khoản thành công!");
@@ -132,9 +147,25 @@ public class AuthService : IAuthService
         return Task.CompletedTask;
     }
 
+    public async Task<bool> ValidateSessionAsync()
+    {
+        var session = _currentUser;
+        if (session == null) return false;
+        await using var db = await _contextFactory.CreateDbContextAsync();
+        var user = await db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.UserId == session.UserId);
+        if (user == null || !user.IsActive || user.RoleId != session.RoleId ||
+            SessionSecurity.Stamp(user.PasswordHash) != _sessionStamp)
+        {
+            _currentUser = null;
+            return false;
+        }
+        _currentUser = session with { FullName = user.FullName, Phone = user.Phone };
+        return true;
+    }
+
     public async Task<(bool Success, string Message)> UpdateProfileAsync(string fullName, string phone)
     {
-        if (_currentUser == null)
+        if (!await ValidateSessionAsync() || _currentUser == null)
             return (false, "Bạn chưa đăng nhập.");
 
         if (string.IsNullOrWhiteSpace(fullName) || string.IsNullOrWhiteSpace(phone))
@@ -157,14 +188,14 @@ public class AuthService : IAuthService
 
     public async Task<(bool Success, string Message)> ChangePasswordAsync(string oldPassword, string newPassword)
     {
-        if (_currentUser == null)
+        if (!await ValidateSessionAsync() || _currentUser == null)
             return (false, "Bạn chưa đăng nhập.");
 
         if (string.IsNullOrWhiteSpace(oldPassword) || string.IsNullOrWhiteSpace(newPassword))
             return (false, "Vui lòng nhập mật khẩu hiện tại và mật khẩu mới.");
 
-        if (newPassword.Length < 6)
-            return (false, "Mật khẩu mới phải có ít nhất 6 ký tự.");
+        if (newPassword.Length < 6 || newPassword.Length > 72)
+            return (false, "Mật khẩu mới phải có từ 6 đến 72 ký tự.");
 
         await using var context = await _contextFactory.CreateDbContextAsync();
         var user = await context.Users.FindAsync(_currentUser.UserId);
