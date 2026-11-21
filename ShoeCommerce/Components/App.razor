@@ -18,13 +18,25 @@
     <link rel="stylesheet" href="app.css" />
     <link rel="stylesheet" href="ShoeCommerce.styles.css" />
     <link rel="icon" type="image/png" href="favicon.png" />
-    <HeadOutlet />
+    <HeadOutlet @rendermode="PageRenderMode" />
 </head>
 
 <body>
-    <Routes />
+    <Routes @rendermode="PageRenderMode" />
+    <script src="/app.js"></script>
     <script src="/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script src="_framework/blazor.web.js"></script>
 </body>
 
 </html>
+
+@code {
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    private IComponentRenderMode? PageRenderMode =>
+        HttpContext.Request.Path.StartsWithSegments("/login") ||
+        HttpContext.Request.Path.StartsWithSegments("/admin/login")
+            ? null
+            : InteractiveServer;
+}

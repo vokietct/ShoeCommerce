@@ -4,6 +4,7 @@
 @inject IUserService UserService
 @inject IAuthService AuthService
 @inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
 
 <div class="mb-4">
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
@@ -278,7 +279,7 @@
                     {
                         <div class="mb-3">
                             <label class="form-label small fw-semibold">Mật khẩu đăng nhập <span class="text-danger">*</span></label>
-                            <input type="password" class="form-control" placeholder="Tối thiểu 6 ký tự" @bind="formPassword" />
+                            <input type="password" class="form-control" placeholder="Tối thiểu 8 ký tự" @bind="formPassword" />
                         </div>
                     }
                 </div>
@@ -388,6 +389,7 @@
 
     private async Task DeleteCustomer(int customerId)
     {
+        if (!await JSRuntime.InvokeAsync<bool>("confirm", "Bạn có chắc muốn xóa khách hàng này? Hành động này không thể hoàn tác.")) return;
         var res = await UserService.DeleteCustomerAsync(customerId);
         alertSuccess = res.Success;
         alertMessage = res.Message;

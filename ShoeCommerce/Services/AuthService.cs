@@ -86,8 +86,8 @@ public class AuthService : IAuthService
             return (false, "Vui lòng điền đầy đủ tất cả các trường.");
         }
 
-        if (password.Length < 6)
-            return (false, "Mật khẩu phải có ít nhất 6 ký tự.");
+        if (password.Length < 8)
+            return (false, "Mật khẩu phải có ít nhất 8 ký tự.");
 
         if (password.Length > 72 || fullName.Trim().Length > 150 || phone.Trim().Length > 20 ||
             email.Trim().Length > 255 || !new EmailAddressAttribute().IsValid(email.Trim()))
@@ -194,8 +194,8 @@ public class AuthService : IAuthService
         if (string.IsNullOrWhiteSpace(oldPassword) || string.IsNullOrWhiteSpace(newPassword))
             return (false, "Vui lòng nhập mật khẩu hiện tại và mật khẩu mới.");
 
-        if (newPassword.Length < 6 || newPassword.Length > 72)
-            return (false, "Mật khẩu mới phải có từ 6 đến 72 ký tự.");
+        if (newPassword.Length < 8 || newPassword.Length > 72)
+            return (false, "Mật khẩu mới phải có từ 8 đến 72 ký tự.");
 
         await using var context = await _contextFactory.CreateDbContextAsync();
         var user = await context.Users.FindAsync(_currentUser.UserId);

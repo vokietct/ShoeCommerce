@@ -5,6 +5,7 @@ using ShoeCommerce.Services;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.RateLimiting;
 using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.DataProtection;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: false)
@@ -16,6 +17,23 @@ builder.Services.AddRazorComponents()
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddAuthorization();
+var dataProtection = builder.Services.AddDataProtection()
+    .SetApplicationName("ShoeCommerce")
+    .PersistKeysToFileSystem(new DirectoryInfo(
+        Path.Combine(builder.Environment.ContentRootPath, "data-protection-keys")));
+if (OperatingSystem.IsWindows())
+{
+    dataProtection.ProtectKeysWithDpapi();
+}
+builder.Services.AddAntiforgery(options =>
+{
+    options.Cookie.Name = ".ShoeStore.Antiforgery";
+    options.Cookie.HttpOnly = true;
+    options.Cookie.SameSite = SameSiteMode.Lax;
+    options.Cookie.SecurePolicy = builder.Environment.IsDevelopment()
+        ? CookieSecurePolicy.SameAsRequest
+        : CookieSecurePolicy.Always;
+});
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
     {
@@ -24,6 +42,9 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         options.Cookie.Name = "ShoeStore.Session";
         options.Cookie.HttpOnly = true;
         options.Cookie.SameSite = SameSiteMode.Lax;
+        options.Cookie.SecurePolicy = builder.Environment.IsDevelopment()
+            ? CookieSecurePolicy.SameAsRequest
+            : CookieSecurePolicy.Always;
         options.ExpireTimeSpan = TimeSpan.FromHours(8);
         options.Events.OnValidatePrincipal = SessionSecurity.ValidateCookieAsync;
         options.Events.OnRedirectToLogin = ctx =>
@@ -68,12 +89,22 @@ builder.Services.AddScoped<IStatisticsService, StatisticsService>();
 
 var app = builder.Build();
 
-// Seed initial database data
-if (app.Configuration.GetValue("Database:SeedDemoData", app.Environment.IsDevelopment()))
+// Seed demo data only in Development and only when explicitly enabled.
+if (app.Environment.IsDevelopment() &&
+    app.Configuration.GetValue<bool>("Database:SeedDemoData"))
 {
-    using var scope = app.Services.CreateScope();
-    var context = scope.ServiceProvider.GetRequiredService<ShoeStoreDbContext>();
-    await DbSeeder.SeedAsync(context);
+    try
+    {
+        using var scope = app.Services.CreateScope();
+        await using var context = await scope.ServiceProvider
+            .GetRequiredService<IDbContextFactory<ShoeStoreDbContext>>()
+            .CreateDbContextAsync();
+        await DbSeeder.SeedAsync(context);
+    }
+    catch (Exception ex) when (ex is DbUpdateException or InvalidOperationException or System.Data.Common.DbException)
+    {
+        app.Logger.LogError(ex, "Không thể chuẩn bị dữ liệu demo. Kiểm tra MySQL và cấu hình ConnectionStrings:DefaultConnection.");
+    }
 }
 
 // Configure the HTTP request pipeline.

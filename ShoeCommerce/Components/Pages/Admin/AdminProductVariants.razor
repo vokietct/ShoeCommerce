@@ -4,6 +4,7 @@
 @inject IProductService ProductService
 @inject IAuthService AuthService
 @inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
 
 <div class="mb-4">
     <!-- Breadcrumb -->
@@ -340,6 +341,7 @@
 
     private async Task DeleteVariant(int variantId)
     {
+        if (!await JSRuntime.InvokeAsync<bool>("confirm", "Bạn có chắc muốn xóa biến thể này? Hành động này không thể hoàn tác.")) return;
         var res = await ProductService.DeleteVariantAsync(variantId);
         alertSuccess = res.Success;
         alertMessage = res.Message;

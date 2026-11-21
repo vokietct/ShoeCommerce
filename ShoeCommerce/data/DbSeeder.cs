@@ -25,7 +25,7 @@ public static class DbSeeder
             {
                 Email = "admin@shoestore.vn",
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("admin123"),
-                FullName = "Hoàng Gia Long",
+                FullName = "Administrator",
                 Phone = "0901234567",
                 RoleId = 1,
                 IsActive = true,
@@ -91,6 +91,17 @@ public static class DbSeeder
             });
 
             await context.SaveChangesAsync();
+        }
+        else
+        {
+            var adminUser = await context.Users
+                .FirstOrDefaultAsync(u => u.Email == "admin@shoestore.vn");
+            if (adminUser != null && adminUser.FullName == "Hoàng Gia Long")
+            {
+                adminUser.FullName = "Administrator";
+                adminUser.UpdatedAt = DateTime.Now;
+                await context.SaveChangesAsync();
+            }
         }
 
         // 3. Categories

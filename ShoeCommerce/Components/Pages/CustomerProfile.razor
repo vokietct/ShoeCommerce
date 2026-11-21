@@ -21,7 +21,7 @@
         <div class="bg-white rounded-4 border p-5 text-center my-4">
             <i class="bi bi-person-lock fs-1 text-secondary mb-3 d-block"></i>
             <h5 class="fw-bold">Vui lòng đăng nhập</h5>
-            <a href="/login" class="btn btn-dark rounded-pill px-4 mt-2">Đăng Nhập</a>
+            <a href="/login" data-enhance-nav="false" class="btn btn-dark rounded-pill px-4 mt-2">Đăng Nhập</a>
         </div>
     }
     else
@@ -85,7 +85,7 @@
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label small fw-semibold text-secondary">Mật khẩu mới (ít nhất 6 ký tự)</label>
+                        <label class="form-label small fw-semibold text-secondary">Mật khẩu mới (ít nhất 8 ký tự)</label>
                         <input type="password" class="form-control" @bind="newPassword" />
                     </div>
 
@@ -156,10 +156,10 @@
             return;
         }
 
-        if (newPassword.Length < 6)
+        if (newPassword.Length < 8)
         {
             passwordSuccess = false;
-            passwordMessage = "Mật khẩu mới phải có tối thiểu 6 ký tự.";
+            passwordMessage = "Mật khẩu mới phải có tối thiểu 8 ký tự.";
             return;
         }
 

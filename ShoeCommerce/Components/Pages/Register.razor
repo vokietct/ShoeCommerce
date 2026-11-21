@@ -48,7 +48,7 @@
             </div>
 
             <div class="mb-3">
-                <label class="form-label small fw-semibold">Mật khẩu (tối thiểu 6 ký tự) <span class="text-danger">*</span></label>
+                <label class="form-label small fw-semibold">Mật khẩu (tối thiểu 8 ký tự) <span class="text-danger">*</span></label>
                 <div class="input-group">
                     <span class="input-group-text bg-light text-secondary"><i class="bi bi-key"></i></span>
                     <input type="password" class="form-control" placeholder="••••••••" name="password" autocomplete="new-password" required />
@@ -70,7 +70,7 @@
 
         <div class="text-center mt-4 text-secondary small">
             Đã có tài khoản?
-            <a href="/login@(string.IsNullOrEmpty(ReturnUrl) ? "" : $"?returnUrl={Uri.EscapeDataString(ReturnUrl)}")" class="fw-bold text-primary text-decoration-none ms-1">
+            <a href="/login@(string.IsNullOrEmpty(ReturnUrl) ? "" : $"?returnUrl={Uri.EscapeDataString(ReturnUrl)}")" data-enhance-nav="false" class="fw-bold text-primary text-decoration-none ms-1">
                 Đăng nhập ngay
             </a>
         </div>
