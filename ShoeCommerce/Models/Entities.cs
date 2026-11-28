@@ -249,6 +249,31 @@ public class Product
 
     public virtual ICollection<ProductVariant> Variants { get; set; } = new List<ProductVariant>();
     public virtual ICollection<ProductReview> Reviews { get; set; } = new List<ProductReview>();
+    public virtual ICollection<ProductImage> Images { get; set; } = new List<ProductImage>();
+}
+
+[Table("product_images")]
+public class ProductImage
+{
+    [Key]
+    [Column("image_id")]
+    public int ImageId { get; set; }
+
+    [Column("product_id")]
+    public int ProductId { get; set; }
+
+    [Column("image_url")]
+    [MaxLength(500)]
+    public string ImageUrl { get; set; } = string.Empty;
+
+    [Column("sort_order")]
+    public int SortOrder { get; set; }
+
+    [Column("created_at")]
+    public DateTime CreatedAt { get; set; } = DateTime.Now;
+
+    [ForeignKey(nameof(ProductId))]
+    public virtual Product? Product { get; set; }
 }
 
 [Table("product_variants")]

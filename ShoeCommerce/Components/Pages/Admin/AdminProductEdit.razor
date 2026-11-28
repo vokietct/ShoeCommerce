@@ -1,4 +1,5 @@
 @attribute [Authorize(Roles = "Admin")]
+@using Microsoft.AspNetCore.Components.Forms
 @page "/admin/products/new"
 @page "/admin/products/{id:int}/edit"
 @layout Layout.AdminLayout
@@ -7,6 +8,7 @@
 @inject ISupplierService SupplierService
 @inject IAuthService AuthService
 @inject NavigationManager Navigation
+@inject IWebHostEnvironment Environment
 
 <div class="mb-4" style="max-width: 900px;">
     <!-- Breadcrumb -->
@@ -111,16 +113,48 @@
                 </div>
 
                 <div class="col-12">
-                    <label class="form-label small fw-semibold">Đường dẫn hình ảnh đại diện (Thumbnail URL)</label>
-                    <div class="input-group">
-                        <span class="input-group-text bg-light text-secondary"><i class="bi bi-image"></i></span>
-                        <input type="text" class="form-control" placeholder="/images/products/nike_air_force_1.png hoặc URL ảnh online" @bind="product.ThumbnailUrl" />
-                    </div>
-                    @if (!string.IsNullOrWhiteSpace(product.ThumbnailUrl))
+                    <label class="form-label small fw-semibold">Hình ảnh sản phẩm (tối đa 10 ảnh)</label>
+                    <InputFile OnChange="HandleImageSelection"
+                               accept=".jpg,.jpeg,.png,.webp"
+                               multiple
+                               class="form-control" />
+                    <span class="text-muted" style="font-size: 0.725rem;">JPG, PNG hoặc WebP; tối đa 5 MB mỗi ảnh.</span>
+
+                    @if (pendingImageFiles.Count > 0)
+                    {
+                        <div class="d-flex flex-wrap gap-2 mt-3">
+                            @foreach (var file in pendingImageFiles)
+                            {
+                                <span class="badge text-bg-light border px-3 py-2">
+                                    <i class="bi bi-file-earmark-image me-1"></i>@file.Name
+                                </span>
+                            }
+                        </div>
+                    }
+
+                    @if (existingImageUrls.Count > 0)
+                    {
+                        <div class="mt-3">
+                            <span class="small text-secondary d-block mb-2">Hình ảnh hiện tại:</span>
+                            <div class="d-flex flex-wrap gap-2">
+                                @foreach (var imageUrl in existingImageUrls)
+                                {
+                                    <div class="border rounded-3 p-2 bg-light text-center" style="width: 130px;">
+                                        <img src="@imageUrl" alt="Hình sản phẩm" style="width: 112px; height: 112px; object-fit: contain;" />
+                                        <button type="button" class="btn btn-sm btn-outline-danger w-100 mt-2"
+                                                @onclick="() => RemoveExistingImage(imageUrl)">
+                                            <i class="bi bi-trash me-1"></i>Xóa
+                                        </button>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    }
+                    else
                     {
                         <div class="mt-2 p-2 border rounded-3 bg-light d-inline-block">
-                            <span class="small text-secondary d-block mb-1">Xem trước ảnh:</span>
-                            <img src="@product.ThumbnailUrl" alt="Preview" style="max-height: 90px; object-fit: contain;" />
+                            <span class="small text-secondary d-block mb-1">Ảnh đại diện hiện tại:</span>
+                            <img src="@(product.ThumbnailUrl ?? "/images/products/nike_air_force_1.png")" alt="Preview" style="max-height: 90px; object-fit: contain;" />
                         </div>
                     }
                 </div>
@@ -163,6 +197,8 @@
     private List<Category>? categories;
     private List<Brand>? brands;
     private List<Supplier>? suppliers;
+    private readonly List<string> existingImageUrls = new();
+    private IReadOnlyList<IBrowserFile> pendingImageFiles = Array.Empty<IBrowserFile>();
 
     private bool isLoading = true;
     private bool isSubmitting = false;
@@ -181,6 +217,15 @@
             if (p != null)
             {
                 product = p;
+                existingImageUrls.Clear();
+                foreach (var image in p.Images.OrderBy(i => i.SortOrder).ThenBy(i => i.ImageId))
+                {
+                    existingImageUrls.Add(image.ImageUrl);
+                }
+                if (existingImageUrls.Count == 0 && !string.IsNullOrWhiteSpace(p.ThumbnailUrl))
+                {
+                    existingImageUrls.Add(p.ThumbnailUrl);
+                }
             }
             else
             {
@@ -189,6 +234,8 @@
         }
         else
         {
+            existingImageUrls.Clear();
+            pendingImageFiles = Array.Empty<IBrowserFile>();
             product = new Product
             {
                 Status = ProductStatus.Selling,
@@ -197,6 +244,65 @@
         }
 
         isLoading = false;
+    }
+
+    private void HandleImageSelection(InputFileChangeEventArgs args)
+    {
+        errorMessage = null;
+        var files = args.GetMultipleFiles(10).ToList();
+        if (existingImageUrls.Count + files.Count > 10)
+        {
+            errorMessage = "Một sản phẩm chỉ được tối đa 10 hình ảnh.";
+            return;
+        }
+
+        var allowedTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "image/jpeg", "image/png", "image/webp"
+        };
+        if (files.Any(file => !allowedTypes.Contains(file.ContentType)))
+        {
+            errorMessage = "Chỉ hỗ trợ hình JPG, PNG hoặc WebP.";
+            return;
+        }
+        if (files.Any(file => file.Size > 5 * 1024 * 1024))
+        {
+            errorMessage = "Mỗi hình ảnh không được vượt quá 5 MB.";
+            return;
+        }
+
+        pendingImageFiles = files;
+    }
+
+    private void RemoveExistingImage(string imageUrl)
+    {
+        existingImageUrls.Remove(imageUrl);
+    }
+
+    private async Task<List<string>> SavePendingImagesAsync(int productId)
+    {
+        var savedUrls = new List<string>();
+        if (pendingImageFiles.Count == 0)
+            return savedUrls;
+
+        var folder = Path.Combine(Environment.WebRootPath, "uploads", "products");
+        Directory.CreateDirectory(folder);
+
+        foreach (var file in pendingImageFiles)
+        {
+            var extension = Path.GetExtension(file.Name).ToLowerInvariant();
+            if (extension is not ".jpg" and not ".jpeg" and not ".png" and not ".webp")
+                continue;
+
+            var fileName = $"{productId}_{Guid.NewGuid():N}{extension}";
+            var path = Path.Combine(folder, fileName);
+            await using var input = file.OpenReadStream(5 * 1024 * 1024);
+            await using var output = File.Create(path);
+            await input.CopyToAsync(output);
+            savedUrls.Add($"/uploads/products/{fileName}");
+        }
+
+        return savedUrls;
     }
 
     private async Task HandleSave()
@@ -214,27 +320,40 @@
         if (IsNew)
         {
             var res = await ProductService.CreateProductAsync(product);
-            isSubmitting = false;
             if (res.Success && res.ProductId.HasValue)
             {
+                var uploadedUrls = await SavePendingImagesAsync(res.ProductId.Value);
+                if (uploadedUrls.Count > 0)
+                {
+                    await ProductService.ReplaceProductImagesAsync(res.ProductId.Value, uploadedUrls);
+                }
+                isSubmitting = false;
                 // Sau khi tạo sản phẩm, chuyển đến trang quản lý biến thể để thêm size/màu/giá
                 Navigation.NavigateTo($"/admin/products/{res.ProductId.Value}/variants");
             }
             else
             {
+                isSubmitting = false;
                 errorMessage = res.Message;
             }
         }
         else
         {
             var res = await ProductService.UpdateProductAsync(product);
-            isSubmitting = false;
             if (res.Success)
             {
+                var finalUrls = existingImageUrls
+                    .Concat(await SavePendingImagesAsync(product.ProductId))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Take(10)
+                    .ToList();
+                await ProductService.ReplaceProductImagesAsync(product.ProductId, finalUrls);
+                isSubmitting = false;
                 Navigation.NavigateTo("/admin/products");
             }
             else
             {
+                isSubmitting = false;
                 errorMessage = res.Message;
             }
         }

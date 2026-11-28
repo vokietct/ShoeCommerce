@@ -19,6 +19,7 @@ public class ShoeStoreDbContext : DbContext
     public DbSet<Brand> Brands => Set<Brand>();
     public DbSet<Supplier> Suppliers => Set<Supplier>();
     public DbSet<Product> Products => Set<Product>();
+    public DbSet<ProductImage> ProductImages => Set<ProductImage>();
     public DbSet<ProductVariant> ProductVariants => Set<ProductVariant>();
     public DbSet<Promotion> Promotions => Set<Promotion>();
     public DbSet<Cart> Carts => Set<Cart>();
@@ -122,6 +123,15 @@ public class ShoeStoreDbContext : DbContext
                   .WithMany(s => s.Products)
                   .HasForeignKey(e => e.SupplierId)
                   .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<ProductImage>(entity =>
+        {
+            entity.HasIndex(e => new { e.ProductId, e.SortOrder });
+            entity.HasOne(e => e.Product)
+                  .WithMany(p => p.Images)
+                  .HasForeignKey(e => e.ProductId)
+                  .OnDelete(DeleteBehavior.Cascade);
         });
 
         // 10. Product Variants

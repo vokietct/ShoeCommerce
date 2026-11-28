@@ -89,6 +89,19 @@ builder.Services.AddScoped<IStatisticsService, StatisticsService>();
 
 var app = builder.Build();
 
+try
+{
+    using var productImageScope = app.Services.CreateScope();
+    await using var productImageContext = await productImageScope.ServiceProvider
+        .GetRequiredService<IDbContextFactory<ShoeStoreDbContext>>()
+        .CreateDbContextAsync();
+    await DbSeeder.EnsureProductImagesTableAsync(productImageContext);
+}
+catch (Exception ex) when (ex is DbUpdateException or InvalidOperationException or System.Data.Common.DbException)
+{
+    app.Logger.LogError(ex, "Không thể chuẩn bị bảng hình ảnh sản phẩm.");
+}
+
 // Seed demo data only in Development and only when explicitly enabled.
 if (app.Environment.IsDevelopment() &&
     app.Configuration.GetValue<bool>("Database:SeedDemoData"))

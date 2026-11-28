@@ -106,6 +106,7 @@ public class ProductService : IProductService
             .Include(p => p.Brand)
             .Include(p => p.Supplier)
             .Include(p => p.Variants)
+            .Include(p => p.Images)
             .Include(p => p.Reviews)
                 .ThenInclude(r => r.Customer)
                     .ThenInclude(c => c!.User)
@@ -113,6 +114,8 @@ public class ProductService : IProductService
 
         var product = await query.FirstOrDefaultAsync();
         if (product == null || (!includeAllVariants && product.Status != ProductStatus.Selling)) return null;
+
+        product.Images = product.Images.OrderBy(i => i.SortOrder).ThenBy(i => i.ImageId).ToList();
 
         if (!includeAllVariants)
         {
@@ -241,6 +244,42 @@ public class ProductService : IProductService
 
         await context.SaveChangesAsync();
         return (true, "Cập nhật sản phẩm thành công!");
+    }
+
+    public async Task<(bool Success, string Message)> ReplaceProductImagesAsync(int productId, IReadOnlyCollection<string> imageUrls)
+    {
+        await _access.AdminAsync();
+        await using var context = await _contextFactory.CreateDbContextAsync();
+        var product = await context.Products.FirstOrDefaultAsync(p => p.ProductId == productId);
+        if (product == null)
+            return (false, "Không tìm thấy sản phẩm.");
+
+        var urls = imageUrls
+            .Where(url => !string.IsNullOrWhiteSpace(url))
+            .Select(url => url.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(10)
+            .ToList();
+
+        var existing = await context.ProductImages
+            .Where(i => i.ProductId == productId)
+            .ToListAsync();
+        context.ProductImages.RemoveRange(existing);
+
+        for (var index = 0; index < urls.Count; index++)
+        {
+            context.ProductImages.Add(new ProductImage
+            {
+                ProductId = productId,
+                ImageUrl = urls[index],
+                SortOrder = index
+            });
+        }
+
+        product.ThumbnailUrl = urls.FirstOrDefault() ?? product.ThumbnailUrl;
+        product.UpdatedAt = DateTime.Now;
+        await context.SaveChangesAsync();
+        return (true, "Cập nhật hình ảnh sản phẩm thành công!");
     }
 
     public async Task<(bool Success, string Message)> ToggleProductStatusAsync(int productId)

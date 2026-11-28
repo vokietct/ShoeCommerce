@@ -39,14 +39,32 @@
         <div class="row g-5 mb-5">
             <!-- Product Gallery / Main Image -->
             <div class="col-lg-6">
-                <div class="bg-white rounded-4 border p-4 text-center position-relative">
-                    <span class="badge bg-dark position-absolute top-0 start-0 m-3 px-3 py-2 rounded-pill">
-                        @(product.Brand?.BrandName ?? "Chính Hãng")
-                    </span>
-                    <img src="@(product.ThumbnailUrl ?? "/images/products/nike_air_force_1.png")"
-                         alt="@product.ProductName"
-                         class="img-fluid"
-                         style="max-height: 440px; object-fit: contain; filter: drop-shadow(0 15px 25px rgba(0,0,0,0.1));" />
+                <div class="bg-white rounded-4 border p-4 text-center">
+                    <div class="d-flex justify-content-start mb-3">
+                        <span class="badge bg-dark px-3 py-2 rounded-pill">
+                            @(product.Brand?.BrandName ?? "Chính Hãng")
+                        </span>
+                    </div>
+                    <div class="product-gallery-stage">
+                        <img src="@(selectedImageUrl ?? product.ThumbnailUrl ?? "/images/products/nike_air_force_1.png")"
+                             alt="@product.ProductName"
+                             class="product-gallery-image" />
+                    </div>
+                    @if (galleryImageUrls.Count > 1)
+                    {
+                        <div class="d-flex justify-content-center flex-wrap gap-2 mt-3">
+                            @foreach (var imageUrl in galleryImageUrls)
+                            {
+                                <button type="button"
+                                        class="border rounded-3 p-1 bg-white @(selectedImageUrl == imageUrl ? "border-dark" : "")"
+                                        style="width: 72px; height: 72px;"
+                                        @onclick="() => selectedImageUrl = imageUrl">
+                                    <img src="@imageUrl" alt="@product.ProductName"
+                                         style="width: 62px; height: 62px; object-fit: contain;" />
+                                </button>
+                            }
+                        </div>
+                    }
                 </div>
             </div>
 
@@ -119,6 +137,10 @@
                             @foreach (var size in availableSizes)
                             {
                                 <button type="button" class="pill-option @(selectedSize == size ? "active" : "")" @onclick="() => SelectSize(size)">
+                                    @if (selectedSize == size)
+                                    {
+                                        <i class="bi bi-check-circle-fill me-1"></i>
+                                    }
                                     Size @size
                                 </button>
                             }
@@ -134,6 +156,10 @@
                             @foreach (var color in availableColorsForSize)
                             {
                                 <button type="button" class="pill-option @(selectedColor == color ? "active" : "")" @onclick="() => SelectColor(color)">
+                                    @if (selectedColor == color)
+                                    {
+                                        <i class="bi bi-check-circle-fill me-1"></i>
+                                    }
                                     @color
                                 </button>
                             }
@@ -332,6 +358,8 @@
     private string selectedSize = "";
     private string selectedColor = "";
     private ProductVariant? selectedVariant;
+    private string? selectedImageUrl;
+    private readonly List<string> galleryImageUrls = new();
     private int quantity = 1;
 
     private double averageRating = 5.0;
@@ -359,6 +387,22 @@
 
         if (product != null)
         {
+            galleryImageUrls.Clear();
+            foreach (var image in product.Images
+                .OrderBy(i => i.SortOrder)
+                .ThenBy(i => i.ImageId))
+            {
+                if (!string.IsNullOrWhiteSpace(image.ImageUrl))
+                {
+                    galleryImageUrls.Add(image.ImageUrl);
+                }
+            }
+            if (galleryImageUrls.Count == 0 && !string.IsNullOrWhiteSpace(product.ThumbnailUrl))
+            {
+                galleryImageUrls.Add(product.ThumbnailUrl);
+            }
+            selectedImageUrl = galleryImageUrls.FirstOrDefault();
+
             availableSizes = product.Variants
                 .Select(v => v.Size)
                 .Distinct()

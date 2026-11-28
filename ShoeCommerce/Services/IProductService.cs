@@ -51,6 +51,7 @@ public interface IProductService
 
     Task<(bool Success, string Message, int? ProductId)> CreateProductAsync(Product product);
     Task<(bool Success, string Message)> UpdateProductAsync(Product product);
+    Task<(bool Success, string Message)> ReplaceProductImagesAsync(int productId, IReadOnlyCollection<string> imageUrls);
     Task<(bool Success, string Message)> ToggleProductStatusAsync(int productId);
     Task<(bool Success, string Message)> DeleteProductAsync(int productId);
 
