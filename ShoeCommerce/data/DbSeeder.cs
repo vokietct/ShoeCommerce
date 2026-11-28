@@ -349,6 +349,198 @@ public static class DbSeeder
             await context.SaveChangesAsync();
         }
 
+        // Bổ sung dữ liệu demo đến đủ 42 sản phẩm, không tạo trùng khi app khởi động lại.
+        var currentProductCount = await context.Products.CountAsync();
+        if (currentProductCount < 42)
+        {
+            var categories = await context.Categories.ToListAsync();
+            var brands = await context.Brands.ToListAsync();
+            var suppliers = await context.Suppliers.ToListAsync();
+
+            var demoNames = new[]
+            {
+                "Nike Revolution 7", "Nike Court Vision Low", "Nike Air Max SC",
+                "Nike Dunk Low Retro", "Nike Downshifter 12", "Nike Precision 6",
+                "Adidas Breaknet 2.0", "Adidas Grand Court 2", "Adidas Run Falcon 3",
+                "Adidas Duramo Speed", "Adidas Advantage Base", "Adidas Response Runner",
+                "Puma Skyrocket Lite", "Puma Softride Enzo", "Puma Rebound Layup",
+                "Puma Slipstream", "Puma Caven 2.0", "Puma Court Pure",
+                "Converse Run Star Hike", "Converse One Star Pro", "Converse Chuck Taylor All Star",
+                "Converse Pro Leather", "Converse Jack Purcell", "Converse Star Player 76",
+                "Vans Authentic Classic", "Vans Era ComfyCush", "Vans Knu Skool",
+                "Vans Slip-On Checkerboard", "Vans Filmore Hi", "Vans Skate Old Skool",
+                "New Balance 530", "New Balance 327", "New Balance 1906R", "New Balance Fresh Foam Arishi"
+            };
+
+            var thumbnails = new[]
+            {
+                "/images/products/nike_air_force_1.png",
+                "/images/products/adidas_ultraboost.png",
+                "/images/products/puma_velocity.png",
+                "/images/products/converse_chuck_70.png",
+                "/images/products/vans_old_skool.png",
+                "/images/products/new_balance_574.png",
+                "/images/products/nike_pegasus.png",
+                "/images/products/adidas_samba.png"
+            };
+
+            var demoColors = new[]
+            {
+                new[] { "Trắng", "Đen" },
+                new[] { "Xám", "Xanh Navy" },
+                new[] { "Đen Trắng", "Be" }
+            };
+
+            var existingCodes = await context.Products
+                .Select(p => p.ProductCode)
+                .ToHashSetAsync(StringComparer.OrdinalIgnoreCase);
+
+            var addedProducts = new List<Product>();
+            for (var index = 0; index < demoNames.Length && currentProductCount + addedProducts.Count < 42; index++)
+            {
+                var brandIndex = index % brands.Count;
+                var brand = brands[brandIndex];
+                var category = (index % 4) switch
+                {
+                    0 => categories.First(c => c.CategoryName == "Giày thể thao"),
+                    1 => categories.First(c => c.CategoryName == "Giày chạy bộ"),
+                    2 => categories.First(c => c.CategoryName == "Giày thời trang"),
+                    _ => categories.First(c => c.CategoryName == "Sandal & Dép")
+                };
+                var supplier = suppliers.First(s => s.IsCooperating);
+                if (brand.BrandName == "Nike")
+                    supplier = suppliers.First(s => s.SupplierName.Contains("Nike"));
+                else if (brand.BrandName == "Adidas")
+                    supplier = suppliers.First(s => s.SupplierName.Contains("Adidas"));
+                else
+                    supplier = suppliers.First(s => s.SupplierName.Contains("Đông Á"));
+
+                var code = $"DEMO-{(index + 1):D3}";
+                if (existingCodes.Contains(code))
+                    continue;
+
+                var basePrice = 1450000m + ((index % 9) * 180000m);
+                var colors = demoColors[index % demoColors.Length];
+                var variants = new List<ProductVariant>();
+                var sizes = new[] { "39", "40", "41", "42" };
+                foreach (var (size, sizeIndex) in sizes.Select((size, sizeIndex) => (size, sizeIndex)))
+                {
+                    var color = colors[sizeIndex % colors.Length];
+                    var colorCode = color
+                        .Replace(" ", "")
+                        .Replace("Trắng", "WHT")
+                        .Replace("Đen", "BLK")
+                        .Replace("Xám", "GRY")
+                        .Replace("XanhNavy", "NVY")
+                        .Replace("Be", "BE");
+                    if (colorCode.Length > 8)
+                        colorCode = colorCode[..8];
+
+                    variants.Add(new ProductVariant
+                    {
+                        Sku = $"{code}-{colorCode}-{size}",
+                        Size = size,
+                        Color = color,
+                        Price = basePrice + (sizeIndex % 2 * 50000m),
+                        StockQuantity = 6 + ((index + sizeIndex) % 18),
+                        LowStockThreshold = 5,
+                        Status = ProductStatus.Selling
+                    });
+                }
+
+                var product = new Product
+                {
+                    ProductCode = code,
+                    ProductName = demoNames[index],
+                    CategoryId = category.CategoryId,
+                    BrandId = brand.BrandId,
+                    SupplierId = supplier.SupplierId,
+                    Description = $"{demoNames[index]} thuộc bộ sưu tập thời trang thể thao. Thiết kế năng động, đệm êm ái, phù hợp đi hàng ngày.",
+                    ThumbnailUrl = thumbnails[index % thumbnails.Length],
+                    Status = ProductStatus.Selling,
+                    Variants = variants
+                };
+                addedProducts.Add(product);
+                existingCodes.Add(code);
+            }
+
+            if (addedProducts.Count > 0)
+            {
+                context.Products.AddRange(addedProducts);
+                await context.SaveChangesAsync();
+            }
+        }
+
+        var productsForVariantSeed = await context.Products
+            .Include(p => p.Variants)
+            .ToListAsync();
+        var existingVariantSkus = productsForVariantSeed
+            .SelectMany(p => p.Variants)
+            .Select(v => v.Sku)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var defaultColors = new[] { "Trắng", "Đen", "Xanh Navy", "Xám", "Be" };
+        var shoeSizes = new[] { "39", "40", "41", "42", "43" };
+        var addedVariants = 0;
+
+        foreach (var seededProduct in productsForVariantSeed)
+        {
+            var colors = seededProduct.Variants
+                .Select(v => v.Color)
+                .Where(color => !string.IsNullOrWhiteSpace(color))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            foreach (var defaultColor in defaultColors)
+            {
+                if (colors.Count >= 2)
+                    break;
+                if (!colors.Contains(defaultColor, StringComparer.OrdinalIgnoreCase))
+                    colors.Add(defaultColor);
+            }
+
+            var basePrice = seededProduct.Variants.Count > 0
+                ? seededProduct.Variants.Average(v => v.Price)
+                : 1990000m;
+
+            for (var colorIndex = 0; colorIndex < colors.Count; colorIndex++)
+            {
+                for (var sizeIndex = 0; sizeIndex < shoeSizes.Length; sizeIndex++)
+                {
+                    var size = shoeSizes[sizeIndex];
+                    var color = colors[colorIndex];
+                    if (seededProduct.Variants.Any(v =>
+                        string.Equals(v.Size, size, StringComparison.OrdinalIgnoreCase) &&
+                        string.Equals(v.Color, color, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        continue;
+                    }
+
+                    var sku = $"{seededProduct.ProductCode}-SEED-C{colorIndex + 1}-{size}";
+                    if (!existingVariantSkus.Add(sku))
+                        continue;
+
+                    var isOutOfStock = (seededProduct.ProductId + sizeIndex + colorIndex) % 13 == 0;
+                    var variant = new ProductVariant
+                    {
+                        ProductId = seededProduct.ProductId,
+                        Sku = sku,
+                        Size = size,
+                        Color = color,
+                        Price = basePrice,
+                        StockQuantity = isOutOfStock ? 0 : 8 + ((seededProduct.ProductId + sizeIndex + colorIndex) % 13),
+                        LowStockThreshold = 5,
+                        Status = ProductStatus.Selling
+                    };
+                    context.ProductVariants.Add(variant);
+                    seededProduct.Variants.Add(variant);
+                    addedVariants++;
+                }
+            }
+        }
+
+        if (addedVariants > 0)
+            await context.SaveChangesAsync();
+
         // 7. Promotions
         if (!await context.Promotions.AnyAsync())
         {

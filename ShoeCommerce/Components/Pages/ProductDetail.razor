@@ -150,17 +150,27 @@
                     <!-- Color Selector -->
                     <div class="mb-4">
                         <label class="form-label fw-bold text-dark mb-2">
-                            Màu sắc: <span class="fw-normal text-primary">@selectedColor</span>
+                            Màu sắc: <span class="fw-normal text-primary">@(string.IsNullOrEmpty(selectedColor) ? "Chọn màu" : selectedColor)</span>
                         </label>
                         <div class="pill-selector">
                             @foreach (var color in availableColorsForSize)
                             {
-                                <button type="button" class="pill-option @(selectedColor == color ? "active" : "")" @onclick="() => SelectColor(color)">
+                                var colorVariant = product.Variants.FirstOrDefault(v => v.Size == selectedSize && v.Color == color);
+                                var isOutOfStock = colorVariant == null || colorVariant.StockQuantity <= 0;
+                                <button type="button"
+                                        class="pill-option @(selectedColor == color ? "active" : "") @(isOutOfStock ? "out-of-stock" : "")"
+                                        disabled="@isOutOfStock"
+                                        title="@(isOutOfStock ? "Biến thể này hiện đã hết hàng" : color)"
+                                        @onclick="() => SelectColor(color)">
                                     @if (selectedColor == color)
                                     {
                                         <i class="bi bi-check-circle-fill me-1"></i>
                                     }
                                     @color
+                                    @if (isOutOfStock)
+                                    {
+                                        <span class="variant-stock-label">Hết hàng</span>
+                                    }
                                 </button>
                             }
                         </div>
@@ -411,7 +421,9 @@
 
             if (availableSizes.Any())
             {
-                selectedSize = availableSizes.First();
+                selectedSize = availableSizes.FirstOrDefault(size =>
+                    product.Variants.Any(v => v.Size == size && v.StockQuantity > 0))
+                    ?? availableSizes.First();
                 UpdateColorsForSize();
             }
 
@@ -443,8 +455,15 @@
 
         if (availableColorsForSize.Any())
         {
-            selectedColor = availableColorsForSize.First();
+            selectedColor = availableColorsForSize.FirstOrDefault(color =>
+                product.Variants.Any(v => v.Size == selectedSize && v.Color == color && v.StockQuantity > 0))
+                ?? string.Empty;
             UpdateSelectedVariant();
+        }
+        else
+        {
+            selectedColor = string.Empty;
+            selectedVariant = null;
         }
     }
 
@@ -452,7 +471,8 @@
     {
         if (product == null) return;
 
-        selectedVariant = product.Variants.FirstOrDefault(v => v.Size == selectedSize && v.Color == selectedColor);
+        var variant = product.Variants.FirstOrDefault(v => v.Size == selectedSize && v.Color == selectedColor);
+        selectedVariant = variant is { StockQuantity: > 0 } ? variant : null;
         quantity = 1;
     }
 
@@ -467,6 +487,9 @@
 
     private void SelectColor(string color)
     {
+        if (product?.Variants.FirstOrDefault(v => v.Size == selectedSize && v.Color == color) is not { StockQuantity: > 0 })
+            return;
+
         selectedColor = color;
         UpdateSelectedVariant();
     }

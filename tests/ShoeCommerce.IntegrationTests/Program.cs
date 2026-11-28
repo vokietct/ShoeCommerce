@@ -20,7 +20,20 @@ var passed = 0;
 try
 {
     await new MySqlCommand(schema, connection).ExecuteNonQueryAsync();
-    await using (var db = factory.CreateDbContext()) await DbSeeder.SeedAsync(db);
+    await using (var db = factory.CreateDbContext())
+    {
+        await DbSeeder.SeedAsync(db);
+        var seededProducts = await db.Products.Include(p => p.Variants).ToListAsync();
+        var expectedSizes = new[] { "39", "40", "41", "42", "43" };
+        Check(seededProducts.Count == 42 && seededProducts.All(product =>
+        {
+            var colors = product.Variants.Select(variant => variant.Color).Distinct().ToList();
+            return colors.Count >= 2 && expectedSizes.All(size =>
+                colors.All(color => product.Variants.Any(variant => variant.Size == size && variant.Color == color)));
+        }), "All 42 demo products have every size/color combination");
+        Check(seededProducts.SelectMany(product => product.Variants).Any(variant => variant.StockQuantity == 0),
+            "Demo data includes visible out-of-stock variants");
+    }
     var admin = NewAuth();
     Check((await admin.AdminLoginAsync("admin@shoestore.vn", "admin123")).Success, "Admin login");
     var employee = NewAuth();

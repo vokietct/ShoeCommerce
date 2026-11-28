@@ -287,6 +287,23 @@ a:hover {
     color: #ffffff;
 }
 
+.pill-option.out-of-stock,
+.pill-option.out-of-stock:hover {
+    border-color: #cbd5e1;
+    background: #f1f5f9;
+    color: #64748b;
+    cursor: not-allowed;
+    opacity: 0.8;
+}
+
+.variant-stock-label {
+    display: block;
+    color: #b91c1c;
+    font-size: 0.65rem;
+    line-height: 1.1;
+    margin-top: 0.15rem;
+}
+
 .product-gallery-stage {
     width: 100%;
     aspect-ratio: 4 / 3;
