@@ -48,7 +48,7 @@ public class UserService : IUserService
         if (string.IsNullOrWhiteSpace(fullName) || string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(phone) || string.IsNullOrWhiteSpace(password))
             return (false, "Vui lòng điền đầy đủ họ tên, email, số điện thoại và mật khẩu.", null);
 
-        if (password.Length < 6 || password.Length > 72 || !new EmailAddressAttribute().IsValid(email.Trim()))
+        if (password.Length < 8 || password.Length > 72 || !new EmailAddressAttribute().IsValid(email.Trim()))
             return (false, "Email không hợp lệ hoặc mật khẩu không đủ 6–72 ký tự.", null);
 
         await using var context = await _contextFactory.CreateDbContextAsync();
@@ -218,7 +218,7 @@ public class UserService : IUserService
         if (string.IsNullOrWhiteSpace(fullName) || string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(phone) || string.IsNullOrWhiteSpace(password))
             return (false, "Vui lòng nhập đầy đủ thông tin.", null);
 
-        if (password.Length < 6 || password.Length > 72 || !new EmailAddressAttribute().IsValid(email.Trim()))
+        if (password.Length < 8 || password.Length > 72 || !new EmailAddressAttribute().IsValid(email.Trim()))
             return (false, "Email không hợp lệ hoặc mật khẩu không đủ 6–72 ký tự.", null);
 
         await using var context = await _contextFactory.CreateDbContextAsync();

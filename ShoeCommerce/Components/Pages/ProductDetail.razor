@@ -448,7 +448,7 @@
         if (!AuthService.IsAuthenticated || !AuthService.IsCustomer || AuthService.CurrentUser == null)
         {
             // Yêu cầu đăng nhập
-            Navigation.NavigateTo($"/login?returnUrl=/product/{Id}");
+            Navigation.NavigateTo($"/login?returnUrl=/product/{Id}", forceLoad: true);
             return;
         }
 
@@ -471,7 +471,7 @@
     {
         if (!AuthService.IsAuthenticated || !AuthService.IsCustomer || AuthService.CurrentUser == null)
         {
-            Navigation.NavigateTo("/login");
+            Navigation.NavigateTo("/login", forceLoad: true);
             return;
         }
 

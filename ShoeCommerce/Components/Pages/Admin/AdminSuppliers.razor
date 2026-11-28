@@ -4,6 +4,7 @@
 @inject ISupplierService SupplierService
 @inject IAuthService AuthService
 @inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
 
 <div class="mb-4">
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
@@ -350,6 +351,7 @@
 
     private async Task DeleteSupplier(int supplierId)
     {
+        if (!await JSRuntime.InvokeAsync<bool>("confirm", "Bạn có chắc muốn xóa nhà cung cấp này? Hành động này không thể hoàn tác.")) return;
         var res = await SupplierService.DeleteSupplierAsync(supplierId);
         alertSuccess = res.Success;
         alertMessage = res.Message;

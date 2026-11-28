@@ -9,7 +9,7 @@
         <button class="admin-menu-backdrop" aria-label="Đóng menu" @onclick="() => menuOpen = false"></button>
     }
     <!-- Admin Sidebar -->
-    <aside class="admin-sidebar" @onclick="() => menuOpen = false">
+    <aside class="admin-sidebar">
         <div class="sidebar-header">
             <a href="/admin" class="sidebar-logo">
                 shoestore<span class="dot">.</span>
@@ -220,7 +220,7 @@
         // Kiểm tra xem đã đăng nhập và có quyền Admin/Employee chưa
         if (!AuthService.IsAuthenticated || !AuthService.IsAdminOrEmployee)
         {
-            Navigation.NavigateTo("/admin/login");
+            Navigation.NavigateTo("/admin/login", forceLoad: true);
         }
     }
 

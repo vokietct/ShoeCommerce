@@ -3,6 +3,7 @@
 @inject IOrderService OrderService
 @inject IAuthService AuthService
 @inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
 
 <div class="container py-4">
     <!-- Breadcrumb -->
@@ -23,7 +24,7 @@
             <i class="bi bi-person-lock fs-1 text-secondary mb-3 d-block"></i>
             <h5 class="fw-bold">Vui lòng đăng nhập để xem giỏ hàng của bạn</h5>
             <p class="text-secondary small">Giỏ hàng được lưu trữ an toàn theo tài khoản khách hàng của bạn.</p>
-            <a href="/login?returnUrl=/cart" class="btn btn-dark rounded-pill px-4 mt-2">
+            <a href="/login?returnUrl=/cart" data-enhance-nav="false" class="btn btn-dark rounded-pill px-4 mt-2">
                 Đăng Nhập Ngay
             </a>
             <div class="mt-2">
@@ -227,6 +228,7 @@
     private async Task RemoveItem(int cartItemId)
     {
         if (AuthService.CurrentUser == null) return;
+        if (!await JSRuntime.InvokeAsync<bool>("confirm", "Bạn có chắc muốn xóa sản phẩm này khỏi giỏ hàng?")) return;
         await CartService.RemoveItemAsync(AuthService.CurrentUser.UserId, cartItemId);
         await LoadCart();
         if (promoDiscount > 0 && cartSummary != null)
@@ -238,6 +240,7 @@
     private async Task ClearCart()
     {
         if (AuthService.CurrentUser == null) return;
+        if (!await JSRuntime.InvokeAsync<bool>("confirm", "Bạn có chắc muốn làm trống giỏ hàng? Hành động này không thể hoàn tác.")) return;
         await CartService.ClearCartAsync(AuthService.CurrentUser.UserId);
         promoDiscount = 0;
         appliedPromoCode = "";

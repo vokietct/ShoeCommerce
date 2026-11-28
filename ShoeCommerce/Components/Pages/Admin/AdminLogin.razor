@@ -1,6 +1,5 @@
 @page "/admin/login"
 @layout Layout.MainLayout
-@inject IAuthService AuthService
 @inject NavigationManager Navigation
 
 <div class="container py-5" style="max-width: 460px;">
@@ -14,7 +13,14 @@
             <p class="text-secondary small mb-0">Dành riêng cho Quản lý (Admin) và Nhân viên (Employee)</p>
         </div>
 
-        @if (!string.IsNullOrEmpty(errorMessage))
+        @if (FormError == "invalid")
+        {
+            <div class="alert alert-danger py-2 px-3 small rounded-3 mb-3">
+                Biểu mẫu đăng nhập không hợp lệ nên yêu cầu chưa được xử lý.
+                <a href="@FreshLoginUrl" data-enhance-nav="false" class="alert-link">Tải biểu mẫu mới</a> rồi thử lại.
+            </div>
+        }
+        else if (!string.IsNullOrEmpty(errorMessage))
         {
             <div class="alert alert-danger py-2 px-3 small rounded-3 mb-3">
                 <i class="bi bi-exclamation-triangle-fill me-1"></i> @errorMessage
@@ -55,8 +61,24 @@
 </div>
 
 @code {
+    [CascadingParameter]
+    private HttpContext? HttpContext { get; set; }
+
     [SupplyParameterFromQuery(Name = "returnUrl")]
     public string? ReturnUrl { get; set; }
     [SupplyParameterFromQuery(Name = "error")]
     public string? errorMessage { get; set; }
+    [SupplyParameterFromQuery(Name = "formError")]
+    public string? FormError { get; set; }
+
+    private string FreshLoginUrl =>
+        $"/admin/login?returnUrl={Uri.EscapeDataString(SessionSecurity.LocalReturnUrl(ReturnUrl, "/admin"))}";
+
+    protected override void OnParametersSet()
+    {
+        if (HttpContext is null)
+        {
+            Navigation.Refresh(forceReload: true);
+        }
+    }
 }

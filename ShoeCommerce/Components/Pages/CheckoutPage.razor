@@ -25,7 +25,7 @@
         <div class="bg-white rounded-4 border p-5 text-center my-4">
             <i class="bi bi-person-lock fs-1 text-secondary mb-3 d-block"></i>
             <h5 class="fw-bold">Vui lòng đăng nhập để thanh toán</h5>
-            <a href="/login?returnUrl=/checkout" class="btn btn-dark rounded-pill px-4 mt-2">Đăng Nhập</a>
+            <a href="/login?returnUrl=/checkout" data-enhance-nav="false" class="btn btn-dark rounded-pill px-4 mt-2">Đăng Nhập</a>
         </div>
     }
     else if (isLoading)
@@ -96,14 +96,26 @@
                             <div class="col-md-6">
                                 <label class="form-label small fw-semibold">Họ tên người nhận <span class="text-danger">*</span></label>
                                 <input type="text" class="form-control" @bind="receiverName" placeholder="Nguyễn Văn A" />
+                                @if (receiverNameError)
+                                {
+                                    <div class="text-danger small mt-1">Vui lòng nhập họ tên người nhận.</div>
+                                }
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label small fw-semibold">Số điện thoại <span class="text-danger">*</span></label>
                                 <input type="text" class="form-control" @bind="phone" placeholder="0901234567" />
+                                @if (phoneError)
+                                {
+                                    <div class="text-danger small mt-1">Vui lòng nhập số điện thoại người nhận.</div>
+                                }
                             </div>
                             <div class="col-12">
                                 <label class="form-label small fw-semibold">Địa chỉ giao hàng chi tiết <span class="text-danger">*</span></label>
                                 <textarea class="form-control" rows="2" @bind="shippingAddress" placeholder="Số nhà, tên đường, phường/xã, quận/huyện, tỉnh/thành phố"></textarea>
+                                @if (shippingAddressError)
+                                {
+                                    <div class="text-danger small mt-1">Vui lòng nhập địa chỉ giao hàng chi tiết.</div>
+                                }
                             </div>
                             <div class="col-12">
                                 <label class="form-label small fw-semibold">Ghi chú đơn hàng (nếu có)</label>
@@ -278,6 +290,9 @@
 
     private bool isSubmitting = false;
     private string? errorMessage;
+    private bool receiverNameError;
+    private bool phoneError;
+    private bool shippingAddressError;
 
     protected override async Task OnInitializedAsync()
     {
@@ -362,9 +377,12 @@
         }
         else { appliedPromoCode = ""; promoDiscount = 0; }
 
-        if (string.IsNullOrWhiteSpace(receiverName) || string.IsNullOrWhiteSpace(phone) || string.IsNullOrWhiteSpace(shippingAddress))
+        receiverNameError = string.IsNullOrWhiteSpace(receiverName);
+        phoneError = string.IsNullOrWhiteSpace(phone);
+        shippingAddressError = string.IsNullOrWhiteSpace(shippingAddress);
+        if (receiverNameError || phoneError || shippingAddressError)
         {
-            errorMessage = "Vui lòng nhập đầy đủ tên người nhận, số điện thoại và địa chỉ giao hàng.";
+            errorMessage = "Vui lòng kiểm tra lại thông tin nhận hàng.";
             return;
         }
 

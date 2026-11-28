@@ -4,6 +4,7 @@
 @inject IPromotionService PromotionService
 @inject IAuthService AuthService
 @inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
 
 <div class="mb-4">
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
@@ -298,6 +299,7 @@ else
 
     private async Task DeletePromotion(int id)
     {
+        if (!await JSRuntime.InvokeAsync<bool>("confirm", "Bạn có chắc muốn xóa mã khuyến mãi này? Hành động này không thể hoàn tác.")) return;
         var res = await PromotionService.DeletePromotionAsync(id);
         alertSuccess = res.Success;
         alertMessage = res.Message;

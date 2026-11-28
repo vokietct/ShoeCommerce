@@ -4,6 +4,7 @@
 @inject IInventoryService InventoryService
 @inject IAuthService AuthService
 @inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
 
 <div class="mb-4">
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
@@ -37,19 +38,19 @@
         <div class="col-md-4">
             <select class="form-select form-select-sm" @bind="selectedType" @bind:after="ApplyFilter">
                 <option value="">-- Tất cả loại phiếu kho --</option>
-                <option value="PurchaseReceipt">Phiếu nhập hàng từ nhà cung cấp (PurchaseReceipt)</option>
-                <option value="AdjustmentIn">Phiếu nhập điều chỉnh kho (AdjustmentIn)</option>
-                <option value="AdjustmentOut">Phiếu xuất điều chỉnh kho (AdjustmentOut)</option>
-                <option value="OrderIssue">Phiếu xuất tự động khi đặt hàng (OrderIssue)</option>
-                <option value="OrderCancellationReceipt">Phiếu nhập tự động khi hủy đơn (OrderCancellationReceipt)</option>
+                <option value="PurchaseReceipt">Phiếu nhập hàng từ nhà cung cấp</option>
+                <option value="AdjustmentIn">Phiếu nhập điều chỉnh kho</option>
+                <option value="AdjustmentOut">Phiếu xuất điều chỉnh kho</option>
+                <option value="OrderIssue">Phiếu xuất tự động khi đặt hàng</option>
+                <option value="OrderCancellationReceipt">Phiếu nhập tự động khi hủy đơn</option>
             </select>
         </div>
 
         <div class="col-md-3">
             <select class="form-select form-select-sm" @bind="selectedStatus" @bind:after="ApplyFilter">
                 <option value="">-- Trạng thái phiếu --</option>
-                <option value="Draft">Nháp (Draft)</option>
-                <option value="Confirmed">Đã xác nhận (Confirmed)</option>
+                <option value="Draft">Bản nháp</option>
+                <option value="Confirmed">Đã xác nhận</option>
             </select>
         </div>
 
@@ -328,6 +329,7 @@
     private async Task ConfirmDocument(int docId)
     {
         if (AuthService.CurrentUser == null) return;
+        if (!await JSRuntime.InvokeAsync<bool>("confirm", "Bạn có chắc muốn xác nhận phiếu kho? Sau xác nhận không thể sửa hoặc xóa phiếu.")) return;
         var res = await InventoryService.ConfirmStockDocumentAsync(docId, AuthService.CurrentUser.UserId);
         alertSuccess = res.Success;
         alertMessage = res.Message;
@@ -336,6 +338,7 @@
 
     private async Task DeleteDraft(int docId)
     {
+        if (!await JSRuntime.InvokeAsync<bool>("confirm", "Bạn có chắc muốn xóa bản nháp phiếu kho này?")) return;
         var res = await InventoryService.DeleteStockDocumentDraftAsync(docId);
         alertSuccess = res.Success;
         alertMessage = res.Message;

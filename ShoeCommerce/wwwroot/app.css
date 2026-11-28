@@ -588,4 +588,9 @@ a:hover {
     .customer-header .brand-logo { font-size: 1.35rem; }
     .customer-header > .container { gap: .75rem !important; }
     .modal-dialog { margin: .75rem; }
+    .table-responsive { -webkit-overflow-scrolling: touch; }
+    .customer-header .search-input-group { width: 100%; max-width: 180px; }
+    .admin-topbar .badge { display: none; }
+    .admin-topbar { flex-wrap: nowrap; }
+    .admin-topbar > div:nth-last-child(1) .text-secondary { display: none; }
 }

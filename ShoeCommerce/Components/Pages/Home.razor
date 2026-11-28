@@ -79,7 +79,20 @@
         </div>
 
         <div class="row g-3">
-            @if (categories != null)
+            @if (isLoading)
+            {
+                <div class="col-12 text-center py-4">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="text-muted small mt-2 mb-0">Đang tải danh mục...</p>
+                </div>
+            }
+            else if (categories == null || !categories.Any())
+            {
+                <div class="col-12">
+                    <div class="bg-white border rounded-3 p-4 text-center text-secondary">Chưa có danh mục sản phẩm nào.</div>
+                </div>
+            }
+            else
             {
                 @foreach (var cat in categories)
                 {
@@ -112,7 +125,20 @@
         </div>
 
         <div class="row g-4">
-            @if (featuredProducts != null)
+            @if (isLoading)
+            {
+                <div class="col-12 text-center py-4">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="text-muted small mt-2 mb-0">Đang tải sản phẩm nổi bật...</p>
+                </div>
+            }
+            else if (featuredProducts == null || !featuredProducts.Any())
+            {
+                <div class="col-12">
+                    <div class="bg-white border rounded-3 p-4 text-center text-secondary">Chưa có sản phẩm nổi bật nào.</div>
+                </div>
+            }
+            else
             {
                 @foreach (var prod in featuredProducts)
                 {
@@ -185,10 +211,12 @@
 @code {
     private List<Category>? categories;
     private List<Product>? featuredProducts;
+    private bool isLoading = true;
 
     protected override async Task OnInitializedAsync()
     {
         categories = await CategoryBrandService.GetAllCategoriesAsync();
         featuredProducts = await ProductService.GetFeaturedProductsAsync(8);
+        isLoading = false;
     }
 }

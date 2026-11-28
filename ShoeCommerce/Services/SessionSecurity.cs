@@ -5,6 +5,8 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using System.Data.Common;
 using ShoeCommerce.Data;
 using ShoeCommerce.Models;
 
@@ -44,19 +46,29 @@ public static class SessionSecurity
     public static async Task ValidateCookieAsync(CookieValidatePrincipalContext cookie)
     {
         var session = Read(cookie.Principal);
-        await using var db = await cookie.HttpContext.RequestServices
-            .GetRequiredService<IDbContextFactory<ShoeStoreDbContext>>().CreateDbContextAsync();
-        var user = session == null ? null : await db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.UserId == session.UserId);
-        if (user == null || !user.IsActive || user.RoleId != session!.RoleId ||
-            Stamp(user.PasswordHash) != cookie.Principal?.FindFirstValue(StampClaim))
+        try
         {
+            await using var db = await cookie.HttpContext.RequestServices
+                .GetRequiredService<IDbContextFactory<ShoeStoreDbContext>>().CreateDbContextAsync();
+            var user = session == null ? null : await db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.UserId == session.UserId);
+            if (user == null || !user.IsActive || user.RoleId != session!.RoleId ||
+                Stamp(user.PasswordHash) != cookie.Principal?.FindFirstValue(StampClaim))
+            {
+                cookie.RejectPrincipal();
+                await cookie.HttpContext.SignOutAsync();
+            }
+            else if (user.FullName != session.FullName || user.Phone != session.Phone)
+            {
+                cookie.ReplacePrincipal(Principal(user));
+                cookie.ShouldRenew = true;
+            }
+        }
+        catch (Exception ex) when (ex is DbException or InvalidOperationException)
+        {
+            cookie.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>()
+                .CreateLogger("SessionSecurity").LogWarning(ex, "Không thể kiểm tra phiên đăng nhập do lỗi cơ sở dữ liệu.");
             cookie.RejectPrincipal();
             await cookie.HttpContext.SignOutAsync();
-        }
-        else if (user.FullName != session.FullName || user.Phone != session.Phone)
-        {
-            cookie.ReplacePrincipal(Principal(user));
-            cookie.ShouldRenew = true;
         }
     }
 
@@ -65,7 +77,21 @@ public static class SessionSecurity
         app.MapPost("/account/login", async (HttpContext http, IAntiforgery antiforgery, IAuthService auth,
             IDbContextFactory<ShoeStoreDbContext> factory) =>
         {
-            await antiforgery.ValidateRequestAsync(http);
+            try
+            {
+                await antiforgery.ValidateRequestAsync(http);
+            }
+            catch (AntiforgeryValidationException ex)
+            {
+                var invalidForm = http.Request.HasFormContentType
+                    ? await http.Request.ReadFormAsync()
+                    : null;
+                LogAntiforgeryValidationFailure(http, invalidForm, ex);
+                var isAdminLogin = invalidForm != null && invalidForm["portal"] == "admin";
+                var returnUrl = invalidForm == null ? null : invalidForm["returnUrl"].ToString();
+                var invalidTarget = LocalReturnUrl(returnUrl, isAdminLogin ? "/admin" : "/");
+                return Results.LocalRedirect($"{(isAdminLogin ? "/admin/login" : "/login")}?formError=invalid&returnUrl={Uri.EscapeDataString(invalidTarget)}");
+            }
             var form = await http.Request.ReadFormAsync();
             var admin = form["portal"] == "admin";
             var result = admin
@@ -81,7 +107,20 @@ public static class SessionSecurity
         app.MapPost("/account/register", async (HttpContext http, IAntiforgery antiforgery, IAuthService auth,
             IDbContextFactory<ShoeStoreDbContext> factory) =>
         {
-            await antiforgery.ValidateRequestAsync(http);
+            try
+            {
+                await antiforgery.ValidateRequestAsync(http);
+            }
+            catch (AntiforgeryValidationException ex)
+            {
+                var invalidForm = http.Request.HasFormContentType
+                    ? await http.Request.ReadFormAsync()
+                    : null;
+                LogAntiforgeryValidationFailure(http, invalidForm, ex);
+                var returnUrl = invalidForm == null ? null : invalidForm["returnUrl"].ToString();
+                var invalidTarget = LocalReturnUrl(returnUrl);
+                return Results.LocalRedirect($"/register?error={Uri.EscapeDataString("Phiên biểu mẫu đã hết hạn. Vui lòng tải lại trang và thử lại.")}&returnUrl={Uri.EscapeDataString(invalidTarget)}");
+            }
             var form = await http.Request.ReadFormAsync();
             var result = form["password"] != form["confirmPassword"]
                 ? (Success: false, Message: "Xác nhận mật khẩu không trùng khớp.")
@@ -96,10 +135,63 @@ public static class SessionSecurity
 
         app.MapPost("/account/logout", async (HttpContext http, IAntiforgery antiforgery) =>
         {
-            await antiforgery.ValidateRequestAsync(http);
+            try
+            {
+                await antiforgery.ValidateRequestAsync(http);
+            }
+            catch (AntiforgeryValidationException ex)
+            {
+                var invalidForm = http.Request.HasFormContentType
+                    ? await http.Request.ReadFormAsync()
+                    : null;
+                LogAntiforgeryValidationFailure(http, invalidForm, ex);
+                await http.SignOutAsync();
+                return Results.LocalRedirect("/login?error=Phiên%20biểu%20mẫu%20đã%20hết%20hạn.%20Vui%20lòng%20đăng%20nhập%20lại.");
+            }
             await http.SignOutAsync();
             return Results.LocalRedirect("/");
         });
+    }
+
+    private static void LogAntiforgeryValidationFailure(
+        HttpContext http,
+        IFormCollection? form,
+        AntiforgeryValidationException exception)
+    {
+        var options = http.RequestServices.GetRequiredService<IOptions<AntiforgeryOptions>>().Value;
+        var requestTokenPresent = form != null &&
+            form.TryGetValue(options.FormFieldName, out var requestTokens) &&
+            requestTokens.Any(value => !string.IsNullOrEmpty(value));
+        var cookieName = options.Cookie.Name;
+        var cookieTokenPresent = cookieName != null &&
+            http.Request.Cookies.TryGetValue(cookieName, out var cookieToken) &&
+            !string.IsNullOrEmpty(cookieToken);
+        var message = exception.Message;
+        var category = !requestTokenPresent
+            ? "MissingRequestToken"
+            : !cookieTokenPresent
+                ? "MissingCookieToken"
+                : message.Contains("could not be decrypted", StringComparison.OrdinalIgnoreCase)
+                    ? "TokenUnprotectFailed"
+                    : message.Contains("do not match", StringComparison.OrdinalIgnoreCase) ||
+                      message.Contains("were swapped", StringComparison.OrdinalIgnoreCase)
+                        ? "TokenPairMismatch"
+                        : message.Contains("meant for a different", StringComparison.OrdinalIgnoreCase) ||
+                          message.Contains("meant for user", StringComparison.OrdinalIgnoreCase)
+                            ? "TokenIdentityMismatch"
+                            : message.Contains("custom data check", StringComparison.OrdinalIgnoreCase)
+                                ? "TokenAdditionalDataMismatch"
+                                : "TokenValidationFailed";
+
+        http.RequestServices.GetRequiredService<ILoggerFactory>()
+            .CreateLogger("SessionSecurity")
+            .LogWarning(
+                "Antiforgery validation failed on {Path}. Category={Category}; RequestTokenPresent={RequestTokenPresent}; CookieTokenPresent={CookieTokenPresent}; ExceptionType={ExceptionType}.",
+                http.Request.Path,
+                category,
+                requestTokenPresent,
+                cookieTokenPresent,
+                exception.GetType().Name);
     }
 
     private static async Task SignInAsync(HttpContext http, IDbContextFactory<ShoeStoreDbContext> factory, int id)

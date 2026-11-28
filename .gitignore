@@ -5,3 +5,10 @@ artifacts/
 **/appsettings.Local.json
 **/TestResults/
 **/node_modules/
+*.log
+*.tmp
+*.user
+*.suo
+.vs/
+.vscode/
+data-protection-keys/
